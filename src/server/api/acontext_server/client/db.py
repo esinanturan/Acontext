@@ -242,26 +242,3 @@ async def close_database() -> None:
     """Close database connections."""
     await DB_CLIENT.close()
     logger.info("Database closed")
-
-
-if __name__ == "__main__":
-    import asyncio
-    from ..schema.orm.project import Project
-    from ..schema.orm.space import Space
-
-    async def test():
-        await init_database()
-        try:
-            await DB_CLIENT.health_check()
-            print(DB_CLIENT.get_pool_status())
-            async with DB_CLIENT.get_session_context() as session:
-                p = Project(configs={"name": "Test Project"})
-                session.add(p)
-                await session.flush()
-                s = Space(configs={"name": "asdasd"}, project_id=p.id)
-                session.add(s)
-                await session.commit()
-        finally:
-            await close_database()
-
-    asyncio.run(test())
