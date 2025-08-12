@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Literal, Optional
 
 
@@ -22,4 +22,6 @@ class OpenAIMessageBlob(BaseModel):
 
 
 class OpenAIMessages(BaseModel):
-    messages: list[OpenAIMessageBlob]
+    messages: list[OpenAIMessageBlob] = Field(
+        ..., description="openai chat.completion message format"
+    )

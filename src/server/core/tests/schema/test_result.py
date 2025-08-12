@@ -1,7 +1,7 @@
 import pytest
 from pydantic import ValidationError
 from acontext_server.schema.pydantic.result import Result, Code
-from acontext_server.schema.pydantic.api.response import BasicResponse
+from acontext_server.schema.pydantic.api.basic import BasicResponse
 from fastapi.responses import JSONResponse
 
 

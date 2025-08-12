@@ -2,7 +2,7 @@ from pydantic import BaseModel
 from fastapi.responses import JSONResponse
 from typing import Generic, TypeVar, Type, Optional
 from .error_code import Code
-from .api.response import BasicResponse
+from .api.basic import BasicResponse
 
 T = TypeVar("T")
 

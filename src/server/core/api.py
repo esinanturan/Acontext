@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from contextlib import asynccontextmanager
 import logging
+from acontext_server import __version__
 from acontext_server.api import V1_ROUTER
 from acontext_server.env import LOG
 from acontext_server.client.db import init_database, close_database
@@ -36,5 +37,5 @@ async def lifespan(app: FastAPI):
     await close_redis()
 
 
-app = FastAPI(lifespan=lifespan)
-app.include_router(V1_ROUTER, prefix="/api/v1")
+app = FastAPI(lifespan=lifespan, version=__version__)
+app.include_router(V1_ROUTER)

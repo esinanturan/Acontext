@@ -1,5 +1,6 @@
 from pydantic import BaseModel
 from typing import Optional, TypeVar, Generic
+from ..utils import UUID
 from ..error_code import Code
 
 T = TypeVar("T", dict, BaseModel)
