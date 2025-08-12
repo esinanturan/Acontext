@@ -5,7 +5,6 @@ from .error_code import Code
 from .api.response import BasicResponse
 
 T = TypeVar("T")
-R = TypeVar("R", bound=BasicResponse)
 
 
 class Error(BaseModel):
@@ -17,25 +16,25 @@ class Error(BaseModel):
         return cls(status=status, errmsg=errmsg)
 
 
-class Promise(BaseModel, Generic[T]):
+class Result(BaseModel, Generic[T]):
     data: Optional[T]
     error: Error
 
     @classmethod
-    def resolve(cls, data: T) -> "Promise[T]":
+    def resolve(cls, data: T) -> "Result[T]":
         return cls(data=data, error=Error())
 
     @classmethod
-    def reject(cls, error: Error) -> "Promise[T]":
-        assert error.status != Code.SUCCESS, "status must not be SUCCESS"
-        return cls(data=None, error=error)
+    def reject(cls, status: Code, errmsg: str) -> "Result[T]":
+        assert status != Code.SUCCESS, "status must not be SUCCESS"
+        return cls(data=None, error=Error.init(status, errmsg))
 
-    def unpack(self) -> tuple[Optional[T], Optional[BasicResponse]]:
+    def unpack(self) -> tuple[Optional[T], Optional[Error]]:
         if self.error.status != Code.SUCCESS:
             return None, self.error
         return self.data, None
 
-    def to_response(self, response_type: Type[R]) -> R:
+    def to_response(self, response_type: BasicResponse) -> JSONResponse:
         val_value = response_type(
             data=self.data, status=self.error.status, errmsg=self.error.errmsg
         )

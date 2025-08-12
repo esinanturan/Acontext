@@ -6,7 +6,7 @@ from sqlalchemy.orm import Mapped, mapped_column, declarative_mixin
 from sqlalchemy.sql import func
 from sqlalchemy.types import Integer, DateTime, Boolean
 from sqlalchemy.dialects.postgresql import UUID
-from ..pydantic.promise import Promise, Code, Error
+from ..pydantic.result import Result, Code, Error
 
 
 class Base(DeclarativeBase):
@@ -22,23 +22,23 @@ class Base(DeclarativeBase):
     # )
 
     @classmethod
-    def validate_data(cls, **kwargs) -> Promise[None]:
+    def validate_data(cls, **kwargs) -> Result[None]:
         """Override __new__ to add validation before object creation"""
         # Get the Pydantic model for validation
         pydantic_model = getattr(cls, "__use_pydantic__", None)
         if pydantic_model is None:
-            return Promise.resolve(None)
+            return Result.resolve(None)
 
         try:
             pydantic_model.model_validate(kwargs)
         except ValidationError as e:
             model_name = cls.__name__
-            return Promise.reject(
-                Error.init(Code.BAD_REQUEST, f"{model_name} validation failed: {e}")
+            return Result.reject(
+                Code.BAD_REQUEST, f"{model_name} validation failed: {e}"
             )
 
         # Create the instance normally
-        return Promise.resolve(None)
+        return Result.resolve(None)
 
 
 @declarative_mixin
