@@ -4,7 +4,6 @@ from ..schema.pydantic.api.v1.request import (
     UUID,
     JSONConfig,
     SpaceCreateBlock,
-    BlockData,
     JSONProperty,
 )
 from ..schema.pydantic.api.v1.response import SimpleId, SpaceStatusCheck
@@ -27,9 +26,9 @@ def delete_block(
 
 
 @V1_SPACE_BLOCK_ROUTER.get("/{block_id}/properties")
-def get_page_properties(
+def get_block_properties(
     request: Request, space_id: UUID, block_id: UUID
-) -> BasicResponse[BlockData]:
+) -> BasicResponse[JSONProperty]:
     pass
 
 

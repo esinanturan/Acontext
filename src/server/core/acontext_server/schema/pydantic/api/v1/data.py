@@ -12,3 +12,8 @@ class SessionTaskStatus(StrEnum):
     unchecked = "unchecked"
     checked = "checked"
     FAILED = "failed"
+
+
+class BlockType(StrEnum):
+    TEXT = "text"
+    WORKFLOW = "workflow"

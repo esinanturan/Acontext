@@ -4,7 +4,12 @@ from typing import Any
 from enum import StrEnum
 from ...message.openai import OpenAIMessages
 from ...utils import UUID
-from ..basic import BlockType
+from .data import BlockType
+
+
+class Pagination(BaseModel):
+    limit: int = Field(20, description="limit of the pagination. 0 means no limit")
+    offset: int = Field(0, description="offset of the pagination")
 
 
 class JSONConfig(BaseModel):
@@ -13,10 +18,6 @@ class JSONConfig(BaseModel):
 
 class JSONProperty(BaseModel):
     properties: dict[str, Any] = Field(..., description="JSON for properties")
-
-
-class BlockData(JSONProperty):
-    type: BlockType
 
 
 class SemanticQuery(BaseModel):
@@ -54,7 +55,8 @@ class SpaceCreatePage(JSONProperty):
     par_page_id: Optional[UUID] = Field(..., description="id of the parent page")
 
 
-class SpaceCreateBlock(BlockData):
+class SpaceCreateBlock(JSONProperty):
+    block_type: BlockType
     par_page_id: Optional[UUID] = Field(..., description="id of the parent page")
     par_block_id: Optional[UUID] = Field(
         ...,

@@ -42,20 +42,20 @@ def get_space_config(request: Request, space_id: UUID) -> BasicResponse[JSONConf
     pass
 
 
-@V1_SPACE_ROUTER.get("/find")
-def find_experiences_in_space(
-    request: Request,
-    body: SpaceFind = Query(...),
-) -> BasicResponse[str]:
-    """find experiences in a space"""
-    pass
-
-
 @V1_SPACE_ROUTER.get("/check_space_status")
 def check_space_status(
     request: Request,
     param: LocateSpace = Query(...),
 ) -> BasicResponse[SpaceStatusCheck]:
+    pass
+
+
+@V1_SPACE_ROUTER.get("/semantic_answer")
+def find_experiences_in_space(
+    request: Request,
+    body: SpaceFind = Query(...),
+) -> BasicResponse[str]:
+    """find experiences and answer query"""
     pass
 
 
