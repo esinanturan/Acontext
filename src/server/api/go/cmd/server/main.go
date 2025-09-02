@@ -10,11 +10,13 @@ package main
 //	@securityDefinitions.apikey	RootAuth
 //	@in							header
 //	@name						Authorization
+//	@description				Root Bearer token (e.g., "Bearer your-root-api-bearer-token")
 
 // Bearer at Project level
 //	@securityDefinitions.apikey	ProjectAuth
 //	@in							header
 //	@name						Authorization
+//	@description				Project Bearer token (e.g., "Bearer sk-proj-xxxx")
 
 import (
 	"context"

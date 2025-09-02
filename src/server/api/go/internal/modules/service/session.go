@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"mime/multipart"
-	"strings"
 
 	"github.com/google/uuid"
 	"github.com/memodb-io/Acontext/internal/infra/blob"
@@ -71,26 +70,22 @@ type SendMessageInput struct {
 	Files     map[string]*multipart.FileHeader
 }
 
+type SendMQPublishJSON struct {
+	SessionID uuid.UUID `json:"session_id"`
+	MessageID uuid.UUID `json:"message_id"`
+}
+
 func (s *sessionService) SendMessage(ctx context.Context, in SendMessageInput) (*model.Message, error) {
 	parts := make([]model.Part, 0, len(in.Parts))
 	assets := make([]*model.Asset, 0)
 
 	for idx, p := range in.Parts {
-		tp := strings.ToLower(p.Type)
-		switch tp {
-		case "text", "data", "tool-call", "tool-result":
-			parts = append(parts, model.Part{
-				Type:     p.Type,
-				Text:     p.Text,
-				Markdown: false,
-				Lang:     "",
-				Meta:     p.Meta,
-			})
+		part := model.Part{
+			Type: p.Type,
+			Meta: p.Meta,
+		}
 
-		default:
-			if p.FileField == "" {
-				return nil, fmt.Errorf("parts[%d]: file_field required for type=%s", idx, p.Type)
-			}
+		if p.FileField != "" {
 			fh, ok := in.Files[p.FileField]
 			if !ok || fh == nil {
 				return nil, fmt.Errorf("parts[%d]: missing uploaded file %s", idx, p.FileField)
@@ -103,32 +98,26 @@ func (s *sessionService) SendMessage(ctx context.Context, in SendMessageInput) (
 			}
 
 			a := &model.Asset{
-				ID:       uuid.New(),
-				Bucket:   umeta.Bucket,
-				S3Key:    umeta.Key,
-				ETag:     umeta.ETag,
-				SHA256:   umeta.SHA256,
-				MIME:     umeta.MIME,
-				SizeB:    umeta.SizeB,
-				Width:    umeta.Width,
-				Height:   umeta.Height,
-				Duration: umeta.Duration,
+				ID:     uuid.New(),
+				Bucket: umeta.Bucket,
+				S3Key:  umeta.Key,
+				ETag:   umeta.ETag,
+				SHA256: umeta.SHA256,
+				MIME:   umeta.MIME,
+				SizeB:  umeta.SizeB,
 			}
 			assets = append(assets, a)
-
-			parts = append(parts, model.Part{
-				AssetID:   &a.ID,
-				Type:      p.Type,
-				MIME:      umeta.MIME,
-				SizeB:     &umeta.SizeB,
-				Width:     umeta.Width,
-				Height:    umeta.Height,
-				DurationS: umeta.Duration,
-				Meta:      p.Meta,
-				Filename:  fh.Filename,
-			})
-
+			part.AssetID = &a.ID
+			part.Filename = fh.Filename
+			part.MIME = umeta.MIME
+			part.SizeB = &umeta.SizeB
 		}
+
+		if p.Text != "" {
+			part.Text = p.Text
+		}
+
+		parts = append(parts, part)
 
 	}
 
@@ -147,7 +136,10 @@ func (s *sessionService) SendMessage(ctx context.Context, in SendMessageInput) (
 		if err != nil {
 			return nil, fmt.Errorf("create session message publisher: %w", err)
 		}
-		if err := p.PublishJSON(ctx, msg); err != nil {
+		if err := p.PublishJSON(ctx, SendMQPublishJSON{
+			SessionID: in.SessionID,
+			MessageID: msg.ID,
+		}); err != nil {
 			return nil, fmt.Errorf("publish session message: %w", err)
 		}
 	}

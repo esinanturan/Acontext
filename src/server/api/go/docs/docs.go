@@ -817,14 +817,8 @@ const docTemplate = `{
                 "created_at": {
                     "type": "string"
                 },
-                "duration_seconds": {
-                    "type": "number"
-                },
                 "etag": {
                     "type": "string"
-                },
-                "height": {
-                    "type": "integer"
                 },
                 "id": {
                     "type": "string"
@@ -850,9 +844,6 @@ const docTemplate = `{
                 },
                 "updated_at": {
                     "type": "string"
-                },
-                "width": {
-                    "type": "integer"
                 }
             }
         },
@@ -878,6 +869,9 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/model.MessageAsset"
                     }
+                },
+                "parent_id": {
+                    "type": "string"
                 },
                 "parts": {
                     "type": "array",
@@ -1092,11 +1086,13 @@ const docTemplate = `{
     },
     "securityDefinitions": {
         "ProjectAuth": {
+            "description": "Project Bearer token (e.g., \"Bearer sk-proj-xxxx\")",
             "type": "apiKey",
             "name": "Authorization",
             "in": "header"
         },
         "RootAuth": {
+            "description": "Root Bearer token (e.g., \"Bearer your-root-api-bearer-token\")",
             "type": "apiKey",
             "name": "Authorization",
             "in": "header"

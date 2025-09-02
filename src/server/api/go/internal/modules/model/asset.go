@@ -7,16 +7,13 @@ import (
 )
 
 type Asset struct {
-	ID       uuid.UUID `gorm:"type:uuid;default:gen_random_uuid();primaryKey" json:"id"`
-	Bucket   string    `gorm:"type:text;not null;uniqueIndex:u_bucket_key,priority:1" json:"bucket"`
-	S3Key    string    `gorm:"column:s3_key;type:text;not null;uniqueIndex:u_bucket_key,priority:2" json:"s3_key"`
-	ETag     string    `gorm:"column:etag;type:text" json:"etag"`
-	SHA256   string    `gorm:"column:sha256;type:text" json:"sha256"`
-	MIME     string    `gorm:"column:mime;type:text;not null" json:"mime"`
-	SizeB    int64     `gorm:"column:size_bigint;type:bigint;not null" json:"size_b"`
-	Width    *int      `gorm:"column:width" json:"width"`
-	Height   *int      `gorm:"column:height" json:"height"`
-	Duration *float64  `gorm:"column:duration_seconds;type:numeric" json:"duration_seconds"`
+	ID     uuid.UUID `gorm:"type:uuid;default:gen_random_uuid();primaryKey" json:"id"`
+	Bucket string    `gorm:"type:text;not null;uniqueIndex:u_bucket_key,priority:1" json:"bucket"`
+	S3Key  string    `gorm:"column:s3_key;type:text;not null;uniqueIndex:u_bucket_key,priority:2" json:"s3_key"`
+	ETag   string    `gorm:"column:etag;type:text" json:"etag"`
+	SHA256 string    `gorm:"column:sha256;type:text" json:"sha256"`
+	MIME   string    `gorm:"column:mime;type:text;not null" json:"mime"`
+	SizeB  int64     `gorm:"column:size_bigint;type:bigint;not null" json:"size_b"`
 
 	CreatedAt time.Time `gorm:"autoCreateTime" json:"created_at"`
 	UpdatedAt time.Time `gorm:"autoUpdateTime" json:"updated_at"`

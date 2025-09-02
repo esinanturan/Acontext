@@ -106,15 +106,12 @@ func (s *S3Deps) PresignGet(ctx context.Context, key string, expire time.Duratio
 }
 
 type UploadedMeta struct {
-	Bucket   string
-	Key      string
-	ETag     string
-	SHA256   string
-	MIME     string
-	SizeB    int64
-	Width    *int
-	Height   *int
-	Duration *float64
+	Bucket string
+	Key    string
+	ETag   string
+	SHA256 string
+	MIME   string
+	SizeB  int64
 }
 
 func (u *S3Deps) UploadFormFile(ctx context.Context, fh *multipart.FileHeader) (*UploadedMeta, error) {
@@ -134,10 +131,9 @@ func (u *S3Deps) UploadFormFile(ctx context.Context, fh *multipart.FileHeader) (
 	key := fmt.Sprintf("uploads/%s/%s%s", datePrefix, sumHex, ext)
 
 	input := &s3.PutObjectInput{
-		Bucket: aws.String(u.Bucket),
-		Key:    aws.String(key),
-		Body:   file,
-		// TODO: ContentType is best sniffed by itself; here I simply use the MIME provided by the header.
+		Bucket:      aws.String(u.Bucket),
+		Key:         aws.String(key),
+		Body:        file,
 		ContentType: aws.String(fh.Header.Get("Content-Type")),
 		Metadata: map[string]string{
 			"sha256": sumHex,
@@ -153,7 +149,8 @@ func (u *S3Deps) UploadFormFile(ctx context.Context, fh *multipart.FileHeader) (
 	return &UploadedMeta{
 		Bucket: u.Bucket,
 		Key:    key,
-		ETag:   aws.ToString(out.ETag),
+		ETag:   *out.ETag,
+		SHA256: sumHex,
 		MIME:   fh.Header.Get("Content-Type"),
 		SizeB:  fh.Size,
 	}, nil

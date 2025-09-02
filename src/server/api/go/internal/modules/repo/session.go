@@ -41,6 +41,12 @@ func (r *sessionRepo) Get(ctx context.Context, s *model.Session) (*model.Session
 
 func (r *sessionRepo) CreateMessageWithAssets(ctx context.Context, msg *model.Message, assets []*model.Asset) error {
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		// First get the message parent id in session
+		parent := model.Message{}
+		if err := tx.Where(&model.Message{SessionID: msg.SessionID}).Order("created_at desc").First(&parent).Error; err == nil {
+			msg.ParentID = &parent.ID
+		}
+
 		// 1) Create message
 		if err := tx.Create(msg).Error; err != nil {
 			return err
@@ -59,13 +65,10 @@ func (r *sessionRepo) CreateMessageWithAssets(ctx context.Context, msg *model.Me
 					clause.OnConflict{
 						Columns: []clause.Column{{Name: "bucket"}, {Name: "s3_key"}},
 						DoUpdates: clause.Assignments(map[string]interface{}{
-							"etag":             a.ETag,
-							"sha256":           a.SHA256,
-							"mime":             a.MIME,
-							"size_bigint":      a.SizeB,
-							"width":            a.Width,
-							"height":           a.Height,
-							"duration_seconds": a.Duration,
+							"etag":        a.ETag,
+							"sha256":      a.SHA256,
+							"mime":        a.MIME,
+							"size_bigint": a.SizeB,
 						}),
 					},
 				).
@@ -84,6 +87,11 @@ func (r *sessionRepo) CreateMessageWithAssets(ctx context.Context, msg *model.Me
 				})
 			}
 			if err := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&links).Error; err != nil {
+				return err
+			}
+
+			// preload message assets
+			if err := tx.Preload("Assets").Where(&model.Message{ID: msg.ID}).First(msg).Error; err != nil {
 				return err
 			}
 		}

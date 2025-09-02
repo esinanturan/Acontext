@@ -41,7 +41,7 @@ func rootAuthMiddleware(secret string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		auth := c.Request.Header.Get("Authorization")
 		if auth != "Bearer "+secret {
-			c.JSON(http.StatusUnauthorized, serializer.AuthErr("Unauthorized"))
+			c.AbortWithStatusJSON(http.StatusUnauthorized, serializer.AuthErr("Unauthorized"))
 			return
 		}
 		c.Next()
@@ -53,14 +53,14 @@ func projectAuthMiddleware(cfg *config.Config, db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		auth := c.Request.Header.Get("Authorization")
 		if auth == "" {
-			c.JSON(http.StatusUnauthorized, serializer.AuthErr("Unauthorized"))
+			c.AbortWithStatusJSON(http.StatusUnauthorized, serializer.AuthErr("Unauthorized"))
 			return
 		}
 
 		// Extract the token (remove the Bearer prefix)
 		token := strings.TrimPrefix(auth, "Bearer ")
 		if !strings.HasPrefix(token, cfg.Root.ProjectBearerTokenPrefix) {
-			c.JSON(http.StatusUnauthorized, serializer.AuthErr("Unauthorized"))
+			c.AbortWithStatusJSON(http.StatusUnauthorized, serializer.AuthErr("Unauthorized"))
 			return
 		}
 
@@ -68,10 +68,10 @@ func projectAuthMiddleware(cfg *config.Config, db *gorm.DB) gin.HandlerFunc {
 		var project model.Project
 		if err := db.Where(model.Project{SecretKey: token}).First(&project).Error; err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
-				c.JSON(http.StatusUnauthorized, serializer.AuthErr("Unauthorized"))
+				c.AbortWithStatusJSON(http.StatusUnauthorized, serializer.AuthErr("Unauthorized"))
 				return
 			}
-			c.JSON(http.StatusInternalServerError, serializer.DBErr("", err))
+			c.AbortWithStatusJSON(http.StatusInternalServerError, serializer.DBErr("", err))
 			return
 		}
 

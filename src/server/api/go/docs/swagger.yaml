@@ -85,12 +85,8 @@ definitions:
         type: string
       created_at:
         type: string
-      duration_seconds:
-        type: number
       etag:
         type: string
-      height:
-        type: integer
       id:
         type: string
       messages:
@@ -108,8 +104,6 @@ definitions:
         type: integer
       updated_at:
         type: string
-      width:
-        type: integer
     type: object
   model.Message:
     properties:
@@ -127,6 +121,8 @@ definitions:
         items:
           $ref: '#/definitions/model.MessageAsset'
         type: array
+      parent_id:
+        type: string
       parts:
         items:
           type: object
@@ -691,10 +687,12 @@ schemes:
 - https
 securityDefinitions:
   ProjectAuth:
+    description: Project Bearer token (e.g., "Bearer sk-proj-xxxx")
     in: header
     name: Authorization
     type: apiKey
   RootAuth:
+    description: Root Bearer token (e.g., "Bearer your-root-api-bearer-token")
     in: header
     name: Authorization
     type: apiKey

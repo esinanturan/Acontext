@@ -8,9 +8,11 @@ import (
 )
 
 type Message struct {
-	ID        uuid.UUID `gorm:"type:uuid;default:gen_random_uuid();primaryKey" json:"id"`
-	SessionID uuid.UUID `gorm:"type:uuid;not null;index" json:"session_id"`
-	Role      string    `gorm:"type:text;not null;check:role IN ('user','assistant','system','tool','function')" json:"role"`
+	ID        uuid.UUID  `gorm:"type:uuid;default:gen_random_uuid();primaryKey" json:"id"`
+	SessionID uuid.UUID  `gorm:"type:uuid;not null;index" json:"session_id"`
+	ParentID  *uuid.UUID `gorm:"type:uuid;index" json:"parent_id"`
+
+	Role string `gorm:"type:text;not null;check:role IN ('user','assistant','system','tool','function')" json:"role"`
 
 	Parts datatypes.JSONType[[]Part] `gorm:"type:jsonb;not null" swaggertype:"array,object" json:"parts"`
 
@@ -34,24 +36,13 @@ type Part struct {
 	Type string `json:"type"`
 
 	// text part
-	Text     string `json:"text,omitempty"`
-	Markdown bool   `json:"markdown,omitempty"`
-	Lang     string `json:"lang,omitempty"`
+	Text string `json:"text,omitempty"`
 
 	// media part
-	AssetID   *uuid.UUID `json:"asset_id,omitempty"`
-	MIME      string     `json:"mime,omitempty"`
-	Filename  string     `json:"filename,omitempty"`
-	SizeB     *int64     `json:"size_bigint,omitempty"`
-	Width     *int       `json:"width,omitempty"`
-	Height    *int       `json:"height,omitempty"`
-	DurationS *float64   `json:"duration_seconds,omitempty"`
-
-	// tool part
-	ToolName   string         `json:"tool_name,omitempty"`
-	ToolCallID string         `json:"tool_call_id,omitempty"`
-	Args       map[string]any `json:"args,omitempty"`
-	Result     map[string]any `json:"result,omitempty"`
+	AssetID  *uuid.UUID `json:"asset_id,omitempty"`
+	MIME     string     `json:"mime,omitempty"`
+	Filename string     `json:"filename,omitempty"`
+	SizeB    *int64     `json:"size_bigint,omitempty"`
 
 	// embedding、ocr、asr、caption...
 	Meta map[string]any `json:"meta,omitempty"`

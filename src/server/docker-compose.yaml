@@ -1,3 +1,4 @@
+name: acontext-server
 services:
   # --- PostgreSQL ---
   acontext-server-pg:
