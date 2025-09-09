@@ -18,7 +18,7 @@ type Message struct {
 
 	Parts datatypes.JSONType[[]Part] `gorm:"type:jsonb;not null" swaggertype:"array,object" json:"parts"`
 
-	SessionTaskProcessStatus string `gorm:"type:text;not null;default:'pending'" json:"session_task_process_status"`
+	SessionTaskProcessStatus string `gorm:"type:text;not null;default:'pending';check:session_task_process_status IN ('success','failed','running','pending')" json:"session_task_process_status"`
 
 	CreatedAt time.Time `gorm:"autoCreateTime;index:idx_session_created,priority:2,sort:desc" json:"created_at"`
 	UpdatedAt time.Time `gorm:"autoUpdateTime" json:"updated_at"`
