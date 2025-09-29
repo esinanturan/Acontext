@@ -13,7 +13,6 @@ from ..prompt.task import TaskPrompt, TASK_TOOLS
 from ...util.generate_ids import track_process
 from ..tool.task_lib.ctx import TaskCtx
 from ..tool.task_lib.insert import _insert_task_tool
-from ...schema.llm import LLMResponse
 
 NEED_UPDATE_CTX = {
     _insert_task_tool.schema.function.name,
@@ -94,8 +93,6 @@ async def task_agent_curd(
         if eil:
             return r
         _messages.append(response_to_sendable_message(llm_return))
-        if eil:
-            return r
         LOG.info(f"LLM Response: {llm_return.content}...")
         if not llm_return.tool_calls:
             LOG.info("No tool calls found, stop iterations")

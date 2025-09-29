@@ -5,7 +5,9 @@ from typing import Literal, Mapping, Optional, Any, Type
 
 
 class ProjectConfig(BaseModel):
+    project_session_message_use_previous_messages_turns: int = 3
     project_session_message_buffer_max_turns: int = 6
+    project_session_message_buffer_max_overflow_turns: int = 18
     project_session_message_buffer_ttl_seconds: int = 10
 
 

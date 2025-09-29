@@ -116,9 +116,6 @@ async def fetch_messages_data_by_ids(
         for message, parts_result in zip(ordered_messages, parts_results):
             d, eil = parts_result.unpack()
             if eil:
-                LOG.error(
-                    f"Exception while fetching parts for message {message.id}: {eil}"
-                )
                 message.parts = None
                 continue
             message.parts = d
@@ -161,11 +158,12 @@ async def fetch_session_messages(
     return await fetch_messages_data_by_ids(db_session, message_ids)
 
 
-async def get_latest_message_ids(
+async def get_message_ids(
     db_session: AsyncSession,
     session_id: asUUID,
     status: str = "pending",
     limit: int = 1,
+    asc: bool = False,
 ) -> Result[List[asUUID]]:
     query = (
         select(Message.id)
@@ -173,7 +171,7 @@ async def get_latest_message_ids(
             Message.session_id == session_id,
             Message.session_task_process_status == status,
         )
-        .order_by(Message.created_at.desc())
+        .order_by(Message.created_at.asc() if asc else Message.created_at.desc())
         .limit(limit)
     )
 

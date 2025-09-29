@@ -3,34 +3,37 @@ from ...infra.db import DB_CLIENT
 from ...schema.session.task import TaskStatus
 from ...schema.session.message import MessageBlob
 from ...schema.utils import asUUID
+from ...llm.agent import task as AT
 from ...schema.result import ResultError
 from ...env import LOG, DEFAULT_CORE_CONFIG
-from ...llm.agent import task as AT
+from ...schema.config import ProjectConfig
 
 
-async def process_session_pending_message(session_id: asUUID):
+async def process_session_pending_message(
+    project_config: ProjectConfig, session_id: asUUID
+):
     pending_message_ids = None
     try:
         async with DB_CLIENT.get_session_context() as session:
             r = await MD.unpending_session_messages_to_running(session, session_id)
             pending_message_ids, eil = r.unpack()
             if eil:
-                LOG.error(f"Exception while unpending session messages: {eil}")
                 return
 
         async with DB_CLIENT.get_session_context() as session:
             r = await MD.fetch_messages_data_by_ids(session, pending_message_ids)
             messages, eil = r.unpack()
             if eil:
-                LOG.error(f"Exception while fetching session messages: {eil}")
                 return
 
             r = await MD.fetch_previous_messages_by_datetime(
-                session, session_id, messages[0].created_at, limit=1
+                session,
+                session_id,
+                messages[0].created_at,
+                limit=project_config.project_session_message_use_previous_messages_turns,
             )
             previous_messages, eil = r.unpack()
             if eil:
-                LOG.error(f"Exception while fetching previous messages: {eil}")
                 return
             messages_data = [
                 MessageBlob(message_id=m.id, role=m.role, parts=m.parts)

@@ -61,10 +61,9 @@ async def waiting_for_message_notify(wait_for_seconds: int, body: InsertNewMessa
 async def insert_new_message(body: InsertNewMessage, message: Message):
     LOG.debug(f"Insert new message {body.message_id}")
     async with DB_CLIENT.get_session_context() as read_session:
-        r = await MD.get_latest_message_ids(read_session, body.session_id)
+        r = await MD.get_message_ids(read_session, body.session_id)
         message_ids, eil = r.unpack()
         if eil:
-            LOG.error(f"Exception while fetching session messages: {eil}")
             return
         if not len(message_ids):
             LOG.debug(f"No pending message found for session {body.session_id}, ignore")
@@ -79,13 +78,11 @@ async def insert_new_message(body: InsertNewMessage, message: Message):
         r = await PD.get_project_config(read_session, body.project_id)
         project_config, eil = r.unpack()
         if eil:
-            LOG.error(f"Exception while fetching project config: {eil}")
             return
 
         r = await MD.session_message_length(read_session, body.session_id)
         pending_message_length, eil = r.unpack()
         if eil:
-            LOG.error(f"Exception while fetching session messages: {eil}")
             return
         if (
             pending_message_length
@@ -110,14 +107,13 @@ async def insert_new_message(body: InsertNewMessage, message: Message):
             routing_key=RK.session_message_insert_retry,
             body=body.model_dump_json(),
         )
-
         return
 
     try:
         LOG.info(
             f"Session message buffer is full (size: {pending_message_length}), start process"
         )
-        await MC.process_session_pending_message(body.session_id)
+        await MC.process_session_pending_message(project_config, body.session_id)
     finally:
         await release_session_message_lock(str(body.session_id))
 
@@ -145,10 +141,9 @@ register_consumer(
 )
 async def buffer_new_message(body: InsertNewMessage, message: Message):
     async with DB_CLIENT.get_session_context() as session:
-        r = await MD.get_latest_message_ids(session, body.session_id)
+        r = await MD.get_message_ids(session, body.session_id)
         message_ids, eil = r.unpack()
         if eil:
-            LOG.error(f"Exception while fetching latest message id {eil}")
             return
         if not len(message_ids):
             LOG.debug(f"No pending message found for session {body.session_id}, ignore")
@@ -158,6 +153,10 @@ async def buffer_new_message(body: InsertNewMessage, message: Message):
             LOG.debug(
                 f"Message {body.message_id} is not the latest pending message, ignore"
             )
+            return
+        r = await PD.get_project_config(session, body.project_id)
+        project_config, eil = r.unpack()
+        if eil:
             return
     LOG.info(f"Message {body.message_id} IDLE, process it now")
     _l = await check_session_message_lock_or_set(str(body.session_id))
@@ -172,6 +171,6 @@ async def buffer_new_message(body: InsertNewMessage, message: Message):
         )
         return
     try:
-        await MC.process_session_pending_message(body.session_id)
+        await MC.process_session_pending_message(project_config, body.session_id)
     finally:
         await release_session_message_lock(str(body.session_id))
