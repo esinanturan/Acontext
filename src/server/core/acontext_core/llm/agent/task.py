@@ -37,7 +37,7 @@ def pack_current_message_with_ids(messages: list[MessageBlob]) -> str:
 async def build_task_ctx(
     db_session: AsyncSession, session_id: asUUID, messages: list[MessageBlob]
 ) -> TaskCtx:
-    LOG.info(f"Building task context for session {session_id}")
+    LOG.debug(f"Building task context for session {session_id}")
     r = await TD.fetch_current_tasks(db_session, session_id)
     current_tasks, eil = r.unpack()
     if eil:

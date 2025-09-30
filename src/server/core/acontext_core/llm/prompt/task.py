@@ -28,36 +28,39 @@ class TaskPrompt(BasePrompt):
 
 ## Analysis Guidelines
 ### Planning Detection
-- Look for explicit task planning language ("My plan is to...")
-- Look for user requirements and preferences.
-- General plannings from user/agent.
-- The messages that cause you to create/update tasks.
+- Look for explicit task planning language ("My plan is to..."), user requirements
+- Only planning confirmed by agent should be considered as planning.
+- Messages that cause you to create/update tasks.
+- Planning messages often consist of user and agent discussions, append those messages to planning section.
 
-### New Task Detection
+### New Task Creation
 - Avoid creating tasks for simple questions answerable directly
 - Only collect tasks stated by agents/users, don't invent them
-- User's requirement should be confimed by the agent's response, then it becomes a valid task, and append those requirements to planning section.
-- The degree of task splitting should follow the agent's plan in the conversation; do not arbitrarily split into finer or coarser granularity.
-- Notice any task modification from agent.
-- Infer execution order and insert tasks sequentially, make sure you arrange the tasks in logical execution order, no the mentioned order.
+- User's requirement should be confimed by the agent's response, then it becomes a valid task.
+- Make sure you insert the task in logical order, not the mentioned order.
 - Ensure no task overlap, make sure the tasks are MECE(mutually exclusive, collectively exhaustive).
 - When valid new tasks mentioned, always try to capture them all, not only the first one.
-- When user asked for tasks modification and agent confirmed, make sure you will create new tasks or modify existing tasks using `update_task` tool.
+- No matter the task will be executed or not, so long as the agent confirm the task, you should create/update them.
 
-### Task Assignment  
+#### Task Modification/Creation
+When user asked for tasks modification and agent confirmed, you need to think:
+a. user/agent is inside/referring a existing task
+b. user/agent is creating a new task
+If (a), modify the existing task' description using `update_task` tool.
+If (b), create anew task following the New Task Creation guidelines.
+
+### Append Messages to Task
 - Match agent responses/actions to existing task descriptions and contexts
 - No need to link every message, just those messages that are contributed to the process of certain tasks.
-- [think] Make sure the messages are contributed to the process of the task, not just doing random linking.
-- [think] Update task statuses or descriptions when confident about relationships 
+- Make sure the messages are contributed to the process of the task, not just doing random linking.
+- Update task statuses or descriptions when confident about relationships 
 
-### Task Modification
-#### Status Updates
+### Update Task Status 
 - `running`: When task work begins or is actively discussed
 - `success`: When completion is confirmed or deliverables provided
 - `failed`: When explicit errors occur or tasks are abandoned
 - `pending`: For tasks not yet started
-#### Description Updates
-- When user asked for existing tasks modification and agent confirmed, make sure you will modify existing tasks' descriptions using `update_task` tool.
+
 
 ## Input Format
 - Input will be markdown-formatted text, with the following sections:
@@ -67,15 +70,16 @@ class TaskPrompt(BasePrompt):
 - Message with ID format: <message id=N> ... </message>, inside the tag is the message content, the id field indicates the message id.
 
 ## Report your thinking before calling tools
-- Use extremely brief sentences to state the plans & tasks conversation mentioned, if any.
-- Use one-two sentences to briefly describe your plan.
-- Make sure you will call tools based on your thinking, and sync with the current conversation.
+Use extremely brief wordings to report:
+- Any planning and task creation/modification mentioned?
+- Messages are contributed to which task?
+- Briefly describe your actions.
+- Conform your will call every necessary tools in one response.
 
 ## Action Guidelines
 - Be precise, context-aware, and conservative. 
 - Focus on meaningful task management that organizes conversation objectives effectively. 
 - Use parallel tool calls, and make sure you call the tools in the correct order.
-- Make sure you called every tool that you need to call based on your report.
 """
 
     @classmethod
@@ -106,12 +110,12 @@ Please analyze the above information and determine the actions.
             "append_messages_to_planning_section"
         ].schema
         append_messages_to_task_tool = TASK_TOOLS["append_messages_to_task"].schema
-        finish_tool = TASK_TOOLS["finish"].schema
+        # finish_tool = TASK_TOOLS["finish"].schema
 
         return [
             insert_task_tool,
             update_task_tool,
             append_messages_to_planning_tool,
             append_messages_to_task_tool,
-            finish_tool,
+            # finish_tool,
         ]

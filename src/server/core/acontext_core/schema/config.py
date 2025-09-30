@@ -33,7 +33,7 @@ class CoreConfig(BaseModel):
     mq_consumer_handler_timeout: float = 96
     mq_default_message_ttl_seconds: int = 7 * 24 * 60 * 60
     mq_default_dlx_ttl_days: int = 7
-    mq_default_max_retries: int = 3
+    mq_default_max_retries: int = 1
     mq_default_retry_delay_unit_sec: float = 1.0
 
     # Database Configuration

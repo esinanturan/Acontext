@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import List
+from typing import List, Optional
 from ..orm import Part, ToolCallMeta
 from ..utils import asUUID
 
@@ -13,7 +13,7 @@ REPLACE_NAME = {
 }
 
 
-def pack_message_line(role: str, part: Part) -> str:
+def pack_part_line(role: str, part: Part) -> str:
     role = REPLACE_NAME.get(role, role)
     if part.type not in STRING_TYPES:
         return f"<{role}> [{part.type} file: {part.filename}]"
@@ -28,7 +28,8 @@ class MessageBlob(BaseModel):
     message_id: asUUID
     role: str
     parts: List[Part]
+    task_id: Optional[asUUID] = None
 
     def to_string(self) -> str:
-        lines = [pack_message_line(self.role, p) for p in self.parts]
+        lines = [pack_part_line(self.role, p) for p in self.parts]
         return "\n".join(lines)
