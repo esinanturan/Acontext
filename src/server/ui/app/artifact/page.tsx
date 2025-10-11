@@ -25,6 +25,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   ChevronRight,
   File,
@@ -37,6 +38,7 @@ import {
   Trash2,
   RefreshCw,
   Upload,
+  X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -246,7 +248,13 @@ export default function ArtifactPage() {
   // Upload file states
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isUploading, setIsUploading] = useState(false);
-  const [currentUploadPath, setCurrentUploadPath] = useState<string>("/");
+
+  // Upload dialog states
+  const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
+  const [uploadPath, setUploadPath] = useState<string>("/");
+  const [initialUploadPath, setInitialUploadPath] = useState<string>("/"); // Track the initial path clicked
+  const [uploadMetaFields, setUploadMetaFields] = useState<{key: string, value: string}[]>([]);
+  const [selectedUploadFile, setSelectedUploadFile] = useState<File | null>(null);
 
   // Create artifact states
   const [isCreating, setIsCreating] = useState(false);
@@ -440,7 +448,22 @@ export default function ArtifactPage() {
   const handleRefreshArtifacts = async () => {
     try {
       setIsRefreshing(true);
+      // Clear file selection and preview
+      setSelectedFile(null);
+      setImageUrl(null);
+      setFileUrl(null);
+
+      // Reload artifacts list
       await loadArtifacts();
+
+      // If there's a selected artifact, reload its file tree
+      if (selectedArtifact) {
+        setTreeData([]);
+        const res = await getListFiles(selectedArtifact.id, "/");
+        if (res.code === 0 && res.data) {
+          setTreeData(formatFiles("/", res.data));
+        }
+      }
     } catch (error) {
       console.error("Failed to refresh artifacts:", error);
     } finally {
@@ -450,23 +473,61 @@ export default function ArtifactPage() {
 
   // Handle upload file button click
   const handleUploadClick = (path: string = "/") => {
-    setCurrentUploadPath(path);
+    setUploadPath(path);
+    setInitialUploadPath(path);
+    setUploadMetaFields([]);
+    setSelectedUploadFile(null);
     fileInputRef.current?.click();
   };
 
-  // Handle file selection and upload
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Handle file selection (open dialog)
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
-    if (!files || files.length === 0 || !selectedArtifact) return;
+    if (!files || files.length === 0) return;
 
     const file = files[0];
+    setSelectedUploadFile(file);
+    setUploadDialogOpen(true);
+  };
+
+  // Handle add meta field
+  const handleAddMetaField = () => {
+    setUploadMetaFields([...uploadMetaFields, { key: "", value: "" }]);
+  };
+
+  // Handle remove meta field
+  const handleRemoveMetaField = (index: number) => {
+    setUploadMetaFields(uploadMetaFields.filter((_, i) => i !== index));
+  };
+
+  // Handle meta field change
+  const handleMetaFieldChange = (index: number, field: "key" | "value", value: string) => {
+    const newFields = [...uploadMetaFields];
+    newFields[index][field] = value;
+    setUploadMetaFields(newFields);
+  };
+
+  // Handle actual file upload
+  const handleUploadConfirm = async () => {
+    if (!selectedUploadFile || !selectedArtifact) return;
 
     try {
       setIsUploading(true);
+      setUploadDialogOpen(false);
+
+      // Build meta object from fields
+      const meta: Record<string, string> = {};
+      uploadMetaFields.forEach(field => {
+        if (field.key.trim()) {
+          meta[field.key.trim()] = field.value;
+        }
+      });
+
       const res = await uploadFile(
         selectedArtifact.id,
-        currentUploadPath,
-        file
+        uploadPath,
+        selectedUploadFile,
+        Object.keys(meta).length > 0 ? meta : undefined
       );
 
       if (res.code !== 0) {
@@ -474,51 +535,33 @@ export default function ArtifactPage() {
         return;
       }
 
-      // Reload the file list for the current path
-      if (currentUploadPath === "/") {
-        // Reload root directory
-        const filesRes = await getListFiles(selectedArtifact.id, "/");
-        if (filesRes.code === 0 && filesRes.data) {
-          setTreeData(formatFiles("/", filesRes.data));
-        }
-      } else {
-        // Reload the specific folder by refreshing tree data
-        const filesRes = await getListFiles(selectedArtifact.id, currentUploadPath);
-        if (filesRes.code === 0 && filesRes.data) {
-          const files = formatFiles(currentUploadPath, filesRes.data);
-
-          // Update the tree data
-          setTreeData((prevData) => {
-            const updateNode = (nodes: TreeNode[]): TreeNode[] => {
-              return nodes.map((n) => {
-                if (n.path === currentUploadPath) {
-                  return {
-                    ...n,
-                    children: files,
-                    isLoaded: true,
-                  };
-                }
-                if (n.children) {
-                  return {
-                    ...n,
-                    children: updateNode(n.children),
-                  };
-                }
-                return n;
-              });
-            };
-            return updateNode(prevData);
-          });
-        }
+      // Refresh the entire directory tree from root
+      setTreeData([]);
+      const filesRes = await getListFiles(selectedArtifact.id, "/");
+      if (filesRes.code === 0 && filesRes.data) {
+        setTreeData(formatFiles("/", filesRes.data));
       }
     } catch (error) {
       console.error("Failed to upload file:", error);
     } finally {
       setIsUploading(false);
+      setSelectedUploadFile(null);
+      setUploadMetaFields([]);
       // Reset file input
       if (fileInputRef.current) {
         fileInputRef.current.value = "";
       }
+    }
+  };
+
+  // Handle cancel upload
+  const handleUploadCancel = () => {
+    setUploadDialogOpen(false);
+    setSelectedUploadFile(null);
+    setUploadMetaFields([]);
+    // Reset file input
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
     }
   };
 
@@ -879,6 +922,26 @@ export default function ArtifactPage() {
                   </div>
                 </div>
 
+                {/* Additional meta information (excluding __file_info__) */}
+                {(() => {
+                  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+                  const { __file_info__, ...additionalMeta } = selectedFile.fileInfo.meta || {};
+
+                  if (Object.keys(additionalMeta).length > 0) {
+                    return (
+                      <div className="border-t pt-4">
+                        <p className="text-sm font-medium text-muted-foreground mb-3">
+                          Additional Metadata
+                        </p>
+                        <pre className="text-sm font-mono bg-muted px-3 py-2 rounded overflow-x-auto">
+                          {JSON.stringify(additionalMeta, null, 2)}
+                        </pre>
+                      </div>
+                    );
+                  }
+                  return null;
+                })()}
+
                 {/* Delete file button */}
                 <div className="border-t pt-4">
                   <Button
@@ -1042,6 +1105,126 @@ export default function ArtifactPage() {
                 </>
               ) : (
                 "Delete"
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Upload file dialog */}
+      <AlertDialog open={uploadDialogOpen} onOpenChange={setUploadDialogOpen}>
+        <AlertDialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Upload File</AlertDialogTitle>
+            <AlertDialogDescription>
+              Configure the upload settings for your file
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+
+          <div className="space-y-4 py-4">
+            {/* File info */}
+            <div>
+              <label className="text-sm font-medium mb-2 block">
+                Selected File
+              </label>
+              <div className="text-sm bg-muted px-3 py-2 rounded-md font-mono">
+                {selectedUploadFile?.name || "No file selected"}
+              </div>
+            </div>
+
+            {/* Path input */}
+            <div>
+              <label className="text-sm font-medium mb-2 block">
+                Upload Path
+              </label>
+              <Input
+                type="text"
+                value={uploadPath}
+                onChange={(e) => setUploadPath(e.target.value)}
+                placeholder="/path/to/directory/"
+                className="font-mono"
+                disabled={initialUploadPath !== "/"}
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                {initialUploadPath === "/"
+                  ? "The directory path where the file will be uploaded (e.g., /folder/)"
+                  : "Path is set to the selected folder. Only root directory uploads allow path customization."}
+              </p>
+            </div>
+
+            {/* Meta fields */}
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-sm font-medium">
+                  Meta Information (Optional)
+                </label>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleAddMetaField}
+                >
+                  <Plus className="h-3 w-3 mr-1" />
+                  Add Field
+                </Button>
+              </div>
+
+              {uploadMetaFields.length === 0 ? (
+                <div className="text-sm text-muted-foreground bg-muted px-3 py-2 rounded-md">
+                  No meta fields added. Click &quot;Add Field&quot; to add custom metadata.
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {uploadMetaFields.map((field, index) => (
+                    <div key={index} className="flex gap-2 items-start">
+                      <Input
+                        type="text"
+                        value={field.key}
+                        onChange={(e) => handleMetaFieldChange(index, "key", e.target.value)}
+                        placeholder="Key"
+                        className="flex-1 font-mono"
+                      />
+                      <Input
+                        type="text"
+                        value={field.value}
+                        onChange={(e) => handleMetaFieldChange(index, "value", e.target.value)}
+                        placeholder="Value"
+                        className="flex-1 font-mono"
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleRemoveMetaField(index)}
+                        className="shrink-0"
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={handleUploadCancel} disabled={isUploading}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleUploadConfirm}
+              disabled={isUploading || !selectedUploadFile}
+            >
+              {isUploading ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  Uploading...
+                </>
+              ) : (
+                <>
+                  <Upload className="h-4 w-4 mr-2" />
+                  Upload
+                </>
               )}
             </AlertDialogAction>
           </AlertDialogFooter>

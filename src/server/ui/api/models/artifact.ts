@@ -34,11 +34,15 @@ export const deleteArtifact = async (
 export const uploadFile = async (
   artifact_id: string,
   file_path: string,
-  file: File
+  file: File,
+  meta?: Record<string, string>
 ): Promise<Res<null>> => {
   const formData = new FormData();
   formData.append("file", file);
   formData.append("file_path", file_path);
+  if (meta && Object.keys(meta).length > 0) {
+    formData.append("meta", JSON.stringify(meta));
+  }
 
   const response = await fetch(`/api/artifact/${artifact_id}/file`, {
     method: "POST",

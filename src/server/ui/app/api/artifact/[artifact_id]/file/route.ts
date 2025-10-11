@@ -64,6 +64,7 @@ export async function POST(
     const formData = await req.formData();
     const file = formData.get("file");
     const file_path = formData.get("file_path");
+    const meta = formData.get("meta");
 
     if (!file || !(file instanceof File)) {
       return createApiError("file is required");
@@ -77,6 +78,11 @@ export async function POST(
     const backendFormData = new FormData();
     backendFormData.append("file", file);
     backendFormData.append("file_path", file_path);
+
+    // Add meta if provided
+    if (meta && typeof meta === "string") {
+      backendFormData.append("meta", meta);
+    }
 
     const response = await fetch(
       `${process.env.NEXT_PUBLIC_API_SERVER_URL}/api/v1/artifact/${artifact_id}/file`,
