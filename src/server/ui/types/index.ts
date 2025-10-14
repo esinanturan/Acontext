@@ -81,3 +81,16 @@ export interface GetMessagesResp {
   has_more: boolean;
   public_urls?: Record<string, { url: string; expire_at: string }>;
 }
+
+export interface Block {
+  id: string;
+  space_id: string;
+  type: string;
+  parent_id: string | null;
+  title: string;
+  props: Record<string, unknown>;
+  sort: number;
+  is_archived: boolean;
+  created_at: string;
+  updated_at: string;
+}

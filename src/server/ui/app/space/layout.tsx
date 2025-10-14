@@ -17,6 +17,7 @@ export default function SpaceLayout({
     { href: "/space/spaces", label: t("spaceList") },
     { href: "/space/sessions", label: t("sessionList") },
     { href: "/space/messages", label: t("messageList") },
+    { href: "/space/pages", label: t("pageList") },
   ];
 
   return (

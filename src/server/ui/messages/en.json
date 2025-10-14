@@ -8,7 +8,8 @@
     "space": "Space",
     "spaceList": "Spaces",
     "sessionList": "Sessions",
-    "messageList": "Messages"
+    "messageList": "Messages",
+    "pageList": "Pages"
   },
   "artifact": {
     "title": "Artifacts",
@@ -129,5 +130,19 @@
     "mimeType": "MIME Type",
     "size": "Size",
     "preview": "Preview"
+  },
+  "pages": {
+    "spaces": "Spaces",
+    "pagesTitle": "Pages",
+    "contentTitle": "Content",
+    "refresh": "Refresh",
+    "filterById": "Filter by ID...",
+    "noData": "No spaces found. Create one to get started.",
+    "noMatching": "No matching spaces found.",
+    "selectSpacePrompt": "Select a space to view pages",
+    "loadingPages": "Loading pages...",
+    "noPages": "No pages found in this space.",
+    "selectPagePrompt": "Select a page to view its content",
+    "noBlocks": "This page has no content blocks."
   }
 }

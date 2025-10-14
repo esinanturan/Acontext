@@ -8,7 +8,8 @@
     "space": "空间",
     "spaceList": "空间",
     "sessionList": "会话",
-    "messageList": "消息"
+    "messageList": "消息",
+    "pageList": "页面"
   },
   "artifact": {
     "title": "工件",
@@ -129,5 +130,19 @@
     "mimeType": "文件类型",
     "size": "大小",
     "preview": "预览"
+  },
+  "pages": {
+    "spaces": "空间",
+    "pagesTitle": "页面",
+    "contentTitle": "内容",
+    "refresh": "刷新",
+    "filterById": "按 ID 筛选...",
+    "noData": "未找到空间。创建一个开始使用。",
+    "noMatching": "未找到匹配的空间。",
+    "selectSpacePrompt": "选择一个空间以查看页面",
+    "loadingPages": "加载页面中...",
+    "noPages": "此空间中未找到页面。",
+    "selectPagePrompt": "选择一个页面以查看其内容",
+    "noBlocks": "此页面没有内容块。"
   }
 }
