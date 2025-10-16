@@ -113,25 +113,25 @@ export const sendMessage = async (
   parts: MessagePartIn[],
   files?: Record<string, File>
 ): Promise<Res<null>> => {
-  // 判断是否有文件需要上传
+  // Check if there are files to upload
   const hasFiles = files && Object.keys(files).length > 0;
 
   if (hasFiles) {
-    // 使用 multipart/form-data
+    // Use multipart/form-data
     const formData = new FormData();
 
-    // 添加 payload 字段（JSON 字符串）
+    // Add payload field (JSON string)
     formData.append("payload", JSON.stringify({ role, parts }));
 
-    // 添加文件
+    // Add files
     for (const [fieldName, file] of Object.entries(files!)) {
       formData.append(fieldName, file);
     }
 
-    // FormData 会自动设置 Content-Type 为 multipart/form-data
+    // FormData will automatically set Content-Type to multipart/form-data
     return await service.post(`/api/session/${session_id}/messages`, formData);
   } else {
-    // 使用 JSON 方式
+    // Use JSON format
     return await service.post(`/api/session/${session_id}/messages`, {
       role,
       parts,
