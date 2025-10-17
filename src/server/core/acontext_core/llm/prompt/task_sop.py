@@ -28,3 +28,7 @@ class TaskSOPPrompt(BasePrompt):
     @classmethod
     def tool_schema(cls) -> list[ToolSchema]:
         pass
+
+
+[{"use_when": str, "notes": str, "sop": list[dict]}]
+[{"use_when": str, "notes": str}]

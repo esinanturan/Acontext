@@ -1,5 +1,6 @@
 from dataclasses import dataclass, field
-from sqlalchemy import ForeignKey, Index, Column
+from optparse import Option
+from sqlalchemy import ForeignKey, Index, Column, String
 from sqlalchemy.orm import relationship
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from typing import TYPE_CHECKING, Optional, List
@@ -21,6 +22,8 @@ class ToolReference(CommonMixin):
 
     __table_args__ = (Index("ix_tool_reference_project_id", "project_id"),)
 
+    tool_name: str = field(metadata={"db": Column(String, nullable=False)})
+
     project_id: asUUID = field(
         metadata={
             "db": Column(
@@ -30,8 +33,10 @@ class ToolReference(CommonMixin):
             )
         }
     )
-
-    configs: Optional[dict] = field(
+    tool_description: Optional[str] = field(
+        default=None, metadata={"db": Column(String, nullable=True)}
+    )
+    tool_arguments_schema: Optional[dict] = field(
         default=None, metadata={"db": Column(JSONB, nullable=True)}
     )
 

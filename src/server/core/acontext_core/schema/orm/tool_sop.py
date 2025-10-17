@@ -19,7 +19,8 @@ class ToolSOP(CommonMixin):
 
     __table_args__ = (Index("ix_tool_sop_project_id", "project_id"),)
 
-    annotation: str = field(metadata={"db": Column(String, nullable=False)})
+    purpose_annotation: str = field(metadata={"db": Column(String, nullable=False)})
+    placeholder_arguments: dict = field(metadata={"db": Column(JSONB, nullable=False)})
 
     tool_id: asUUID = field(
         metadata={
