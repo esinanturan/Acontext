@@ -44,7 +44,7 @@ import {
   uploadFile,
   deleteFile,
 } from "@/api/models/artifact";
-import { Artifact, ListFilesResp, File as FileInfo } from "@/types";
+import { Artifact, ListFilesResp, ArtifactFile as FileInfo } from "@/types";
 import ReactCodeMirror from "@uiw/react-codemirror";
 import { okaidia } from "@uiw/codemirror-theme-okaidia";
 import { json } from "@codemirror/lang-json";

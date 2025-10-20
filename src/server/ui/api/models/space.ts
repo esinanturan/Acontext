@@ -1,5 +1,5 @@
 import service, { Res } from "../http";
-import { Space, Session, GetMessagesResp, Block } from "@/types";
+import { Space, Session, GetMessagesResp, Block, MessageRole, PartType } from "@/types";
 
 // Space APIs
 export const getSpaces = async (): Promise<Res<Space[]>> => {
@@ -101,7 +101,7 @@ export const getMessages = async (
 };
 
 export interface MessagePartIn {
-  type: "text" | "image" | "audio" | "video" | "file" | "tool-call" | "tool-result" | "data";
+  type: PartType;
   text?: string;
   file_field?: string;
   meta?: Record<string, unknown>;
@@ -109,7 +109,7 @@ export interface MessagePartIn {
 
 export const sendMessage = async (
   session_id: string,
-  role: "user" | "assistant" | "system" | "tool" | "function",
+  role: MessageRole,
   parts: MessagePartIn[],
   files?: Record<string, File>
 ): Promise<Res<null>> => {
@@ -121,7 +121,11 @@ export const sendMessage = async (
     const formData = new FormData();
 
     // Add payload field (JSON string)
-    formData.append("payload", JSON.stringify({ role, parts }));
+    // Note: format parameter will be added by the Next.js API route
+    formData.append("payload", JSON.stringify({
+      role,
+      parts
+    }));
 
     // Add files
     for (const [fieldName, file] of Object.entries(files!)) {
@@ -132,6 +136,7 @@ export const sendMessage = async (
     return await service.post(`/api/session/${session_id}/messages`, formData);
   } else {
     // Use JSON format
+    // Note: format parameter will be added by the Next.js API route
     return await service.post(`/api/session/${session_id}/messages`, {
       role,
       parts,

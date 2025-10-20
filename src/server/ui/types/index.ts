@@ -5,7 +5,7 @@ export interface Artifact {
   updated_at: string;
 }
 
-export interface File {
+export interface ArtifactFile {
   artifact_id: string;
   path: string;
   filename: string;
@@ -23,12 +23,12 @@ export interface File {
 }
 
 export interface ListFilesResp {
-  files: File[];
+  files: ArtifactFile[];
   directories: string[];
 }
 
 export interface GetFileResp {
-  file: File;
+  file: ArtifactFile;
   public_url: string | null;
 }
 
@@ -93,4 +93,36 @@ export interface Block {
   is_archived: boolean;
   created_at: string;
   updated_at: string;
+}
+
+// Message related types
+export type MessageRole = "user" | "assistant" | "system";
+
+export type PartType =
+  | "text"
+  | "image"
+  | "audio"
+  | "video"
+  | "file"
+  | "tool-call"
+  | "tool-result"
+  | "data";
+
+export interface UploadedFile {
+  id: string;
+  file: globalThis.File; // Browser File API
+  type: PartType;
+}
+
+export interface ToolCall {
+  id: string;
+  tool_name: string;
+  tool_call_id: string;
+  parameters: string;
+}
+
+export interface ToolResult {
+  id: string;
+  tool_call_id: string;
+  result: string;
 }

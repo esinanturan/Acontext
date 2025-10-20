@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
+import { useTheme } from "next-themes";
 import { Button } from "@/components/ui/button";
 import {
   Table,
@@ -37,13 +38,27 @@ import {
 } from "@/components/ui/select";
 import { Loader2, Plus, RefreshCw, Upload, X, ArrowLeft } from "lucide-react";
 import Image from "next/image";
+import { getMessages, sendMessage, getSessionConfigs } from "@/api/models/space";
 import {
-  getMessages,
-  sendMessage,
-  MessagePartIn,
-  getSessionConfigs,
-} from "@/api/models/space";
-import { Message } from "@/types";
+  Message,
+  MessageRole,
+  PartType,
+  UploadedFile,
+  ToolCall,
+  ToolResult,
+} from "@/types";
+import ReactCodeMirror from "@uiw/react-codemirror";
+import { okaidia } from "@uiw/codemirror-theme-okaidia";
+import { json } from "@codemirror/lang-json";
+import { EditorView } from "@codemirror/view";
+import {
+  getAllowedPartTypes,
+  generateTempId,
+  buildMessageParts,
+  buildFilesObject,
+  hasMessageContent,
+  filterFilesByRole,
+} from "@/lib/message-utils";
 
 const PAGE_SIZE = 10;
 
@@ -52,6 +67,7 @@ export default function MessagesPage() {
   const params = useParams();
   const router = useRouter();
   const sessionId = params.sessionId as string;
+  const { resolvedTheme } = useTheme();
 
   const [sessionInfo, setSessionInfo] = useState<string>("");
   const [allMessages, setAllMessages] = useState<Message[]>([]);
@@ -60,26 +76,14 @@ export default function MessagesPage() {
   const [currentPage, setCurrentPage] = useState(1);
 
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
-  const [newMessageRole, setNewMessageRole] = useState<
-    "user" | "assistant" | "system" | "tool" | "function"
-  >("user");
+  const [newMessageRole, setNewMessageRole] = useState<MessageRole>("user");
   const [newMessageText, setNewMessageText] = useState("");
-  const [uploadedFiles, setUploadedFiles] = useState<
-    Array<{
-      id: string;
-      file: File;
-      type:
-        | "text"
-        | "image"
-        | "audio"
-        | "video"
-        | "file"
-        | "tool-call"
-        | "tool-result"
-        | "data";
-    }>
-  >([]);
+  const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
   const [isSendingMessage, setIsSendingMessage] = useState(false);
+
+  // Tool call/result specific states
+  const [toolCalls, setToolCalls] = useState<ToolCall[]>([]);
+  const [toolResults, setToolResults] = useState<ToolResult[]>([]);
 
   const [detailDialogOpen, setDetailDialogOpen] = useState(false);
   const [selectedMessage, setSelectedMessage] = useState<Message | null>(null);
@@ -92,6 +96,7 @@ export default function MessagesPage() {
     (currentPage - 1) * PAGE_SIZE,
     currentPage * PAGE_SIZE
   );
+
 
   const loadSessionInfo = async () => {
     try {
@@ -152,13 +157,30 @@ export default function MessagesPage() {
       loadSessionInfo();
       loadAllMessages();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId]);
 
   const handleOpenCreateDialog = () => {
     setNewMessageRole("user");
     setNewMessageText("");
     setUploadedFiles([]);
+    setToolCalls([]);
+    setToolResults([]);
     setCreateDialogOpen(true);
+  };
+
+  const handleRoleChange = (role: MessageRole) => {
+    setNewMessageRole(role);
+    // Clear files that are not allowed for this role
+    setUploadedFiles((prev) => filterFilesByRole(prev, role));
+    // Clear tool calls when switching away from assistant
+    if (role !== "assistant") {
+      setToolCalls([]);
+    }
+    // Clear tool results when switching away from user
+    if (role !== "user") {
+      setToolResults([]);
+    }
   };
 
   const handleOpenDetailDialog = (message: Message) => {
@@ -170,38 +192,16 @@ export default function MessagesPage() {
     const files = event.target.files;
     if (!files) return;
 
-    const newFiles = Array.from(files).map((file) => {
-      // Default to "file" type, let user choose
-      return {
-        id: `file_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        file,
-        type: "file" as
-          | "text"
-          | "image"
-          | "audio"
-          | "video"
-          | "file"
-          | "tool-call"
-          | "tool-result"
-          | "data",
-      };
-    });
+    const newFiles: UploadedFile[] = Array.from(files).map((file) => ({
+      id: generateTempId("file"),
+      file,
+      type: "file",
+    }));
 
     setUploadedFiles((prev) => [...prev, ...newFiles]);
   };
 
-  const handleFileTypeChange = (
-    fileId: string,
-    newType:
-      | "text"
-      | "image"
-      | "audio"
-      | "video"
-      | "file"
-      | "tool-call"
-      | "tool-result"
-      | "data"
-  ) => {
+  const handleFileTypeChange = (fileId: string, newType: PartType) => {
     setUploadedFiles((prev) =>
       prev.map((f) => (f.id === fileId ? { ...f, type: newType } : f))
     );
@@ -211,30 +211,75 @@ export default function MessagesPage() {
     setUploadedFiles((prev) => prev.filter((f) => f.id !== id));
   };
 
+  const handleAddToolCall = () => {
+    setToolCalls((prev) => [
+      ...prev,
+      {
+        id: generateTempId("tool_call"),
+        tool_name: "",
+        tool_call_id: "",
+        parameters: "{}",
+      },
+    ]);
+  };
+
+  const handleUpdateToolCall = (
+    id: string,
+    field: "tool_name" | "tool_call_id" | "parameters",
+    value: string
+  ) => {
+    setToolCalls((prev) =>
+      prev.map((tc) => (tc.id === id ? { ...tc, [field]: value } : tc))
+    );
+  };
+
+  const handleRemoveToolCall = (id: string) => {
+    setToolCalls((prev) => prev.filter((tc) => tc.id !== id));
+  };
+
+  const handleAddToolResult = () => {
+    setToolResults((prev) => [
+      ...prev,
+      {
+        id: generateTempId("tool_result"),
+        tool_call_id: "",
+        result: "",
+      },
+    ]);
+  };
+
+  const handleUpdateToolResult = (
+    id: string,
+    field: "tool_call_id" | "result",
+    value: string
+  ) => {
+    setToolResults((prev) =>
+      prev.map((tr) => (tr.id === id ? { ...tr, [field]: value } : tr))
+    );
+  };
+
+  const handleRemoveToolResult = (id: string) => {
+    setToolResults((prev) => prev.filter((tr) => tr.id !== id));
+  };
+
   const handleSendMessage = async () => {
-    if (!newMessageText.trim() && uploadedFiles.length === 0) return;
+    if (!hasMessageContent(newMessageText, uploadedFiles, toolCalls, toolResults)) {
+      return;
+    }
 
     try {
       setIsSendingMessage(true);
 
       // Build parts array
-      const parts: MessagePartIn[] = [];
+      const parts = buildMessageParts(
+        newMessageText,
+        uploadedFiles,
+        toolCalls,
+        toolResults
+      );
 
-      // Add text part if present
-      if (newMessageText.trim()) {
-        parts.push({ type: "text", text: newMessageText });
-      }
-
-      // Build file mapping and file parts
-      const files: Record<string, File> = {};
-      uploadedFiles.forEach((fileItem) => {
-        const fieldName = fileItem.id;
-        files[fieldName] = fileItem.file;
-        parts.push({
-          type: fileItem.type,
-          file_field: fieldName,
-        });
-      });
+      // Build files object
+      const files = buildFilesObject(uploadedFiles);
 
       // Send message
       const res = await sendMessage(
@@ -450,28 +495,19 @@ export default function MessagesPage() {
 
       {/* Create Message Dialog */}
       <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col">
           <DialogHeader>
             <DialogTitle>{t("createMessageTitle")}</DialogTitle>
             <DialogDescription>
               {t("createMessageDescription")}
             </DialogDescription>
           </DialogHeader>
-          <div className="py-4 space-y-4">
+          <div className="py-4 space-y-4 overflow-y-auto flex-1">
             <div className="space-y-2">
               <label className="text-sm font-medium">{t("role")}</label>
               <Select
                 value={newMessageRole}
-                onValueChange={(value) =>
-                  setNewMessageRole(
-                    value as
-                      | "user"
-                      | "assistant"
-                      | "system"
-                      | "tool"
-                      | "function"
-                  )
-                }
+                onValueChange={(value) => handleRoleChange(value as MessageRole)}
               >
                 <SelectTrigger className="w-full">
                   <SelectValue />
@@ -480,8 +516,6 @@ export default function MessagesPage() {
                   <SelectItem value="user">user</SelectItem>
                   <SelectItem value="assistant">assistant</SelectItem>
                   <SelectItem value="system">system</SelectItem>
-                  <SelectItem value="tool">tool</SelectItem>
-                  <SelectItem value="function">function</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -494,92 +528,261 @@ export default function MessagesPage() {
                 placeholder={t("messageContentPlaceholder")}
               />
             </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium">{t("attachFiles")}</label>
-              <div className="flex items-center gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() =>
-                    document.getElementById("file-upload")?.click()
-                  }
-                  disabled={isSendingMessage}
-                >
-                  <Upload className="h-4 w-4 mr-2" />
-                  {t("selectFiles")}
-                </Button>
-                <input
-                  id="file-upload"
-                  type="file"
-                  multiple
-                  className="hidden"
-                  onChange={handleFileSelect}
-                />
-              </div>
-              {uploadedFiles.length > 0 && (
-                <div className="mt-2 space-y-3">
-                  {uploadedFiles.map((fileItem) => (
-                    <div
-                      key={fileItem.id}
-                      className="flex items-start gap-2 p-3 border rounded-md bg-secondary/20"
-                    >
-                      <div className="flex-1 min-w-0 space-y-2">
-                        <span
-                          className="text-sm font-medium truncate block"
-                          title={fileItem.file.name}
+            {/* Only show file attachments for user and assistant roles */}
+            {newMessageRole !== "system" && (
+              <div className="space-y-2">
+                <label className="text-sm font-medium">
+                  {t("attachFiles")}
+                </label>
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() =>
+                      document.getElementById("file-upload")?.click()
+                    }
+                    disabled={isSendingMessage}
+                  >
+                    <Upload className="h-4 w-4 mr-2" />
+                    {t("selectFiles")}
+                  </Button>
+                  <input
+                    id="file-upload"
+                    type="file"
+                    multiple
+                    className="hidden"
+                    onChange={handleFileSelect}
+                  />
+                </div>
+                {uploadedFiles.length > 0 && (
+                  <div className="mt-2 space-y-3">
+                    {uploadedFiles.map((fileItem) => {
+                      const allowedTypes = getAllowedPartTypes(newMessageRole);
+                      return (
+                        <div
+                          key={fileItem.id}
+                          className="flex items-start gap-2 p-3 border rounded-md bg-secondary/20"
                         >
-                          {fileItem.file.name}
-                        </span>
-                        <Select
-                          value={fileItem.type}
-                          onValueChange={(value) =>
-                            handleFileTypeChange(
-                              fileItem.id,
-                              value as
-                                | "text"
-                                | "image"
-                                | "audio"
-                                | "video"
-                                | "file"
-                                | "tool-call"
-                                | "tool-result"
-                                | "data"
+                          <div className="flex-1 min-w-0 space-y-2">
+                            <span
+                              className="text-sm font-medium truncate block"
+                              title={fileItem.file.name}
+                            >
+                              {fileItem.file.name}
+                            </span>
+                            <Select
+                              value={fileItem.type}
+                              onValueChange={(value) =>
+                                handleFileTypeChange(fileItem.id, value as PartType)
+                              }
+                              disabled={isSendingMessage}
+                            >
+                              <SelectTrigger className="w-full h-8 text-xs">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {allowedTypes.includes("text") && (
+                                  <SelectItem value="text">text</SelectItem>
+                                )}
+                                {allowedTypes.includes("image") && (
+                                  <SelectItem value="image">image</SelectItem>
+                                )}
+                                {allowedTypes.includes("audio") && (
+                                  <SelectItem value="audio">audio</SelectItem>
+                                )}
+                                {allowedTypes.includes("video") && (
+                                  <SelectItem value="video">video</SelectItem>
+                                )}
+                                {allowedTypes.includes("file") && (
+                                  <SelectItem value="file">file</SelectItem>
+                                )}
+                                {allowedTypes.includes("data") && (
+                                  <SelectItem value="data">data</SelectItem>
+                                )}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6 shrink-0"
+                            onClick={() => handleRemoveFile(fileItem.id)}
+                            disabled={isSendingMessage}
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Tool Calls - only for assistant role */}
+            {newMessageRole === "assistant" && (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-sm font-medium">Tool Calls</label>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={handleAddToolCall}
+                    disabled={isSendingMessage}
+                  >
+                    <Plus className="h-4 w-4 mr-1" />
+                    Add Tool Call
+                  </Button>
+                </div>
+                {toolCalls.length > 0 && (
+                  <div className="space-y-3">
+                    {toolCalls.map((tc) => (
+                      <div
+                        key={tc.id}
+                        className="p-3 border rounded-md bg-secondary/20 space-y-2"
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-medium text-muted-foreground">
+                            Tool Call
+                          </span>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6"
+                            onClick={() => handleRemoveToolCall(tc.id)}
+                            disabled={isSendingMessage}
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
+                        <input
+                          type="text"
+                          placeholder="Tool Name"
+                          value={tc.tool_name}
+                          onChange={(e) =>
+                            handleUpdateToolCall(
+                              tc.id,
+                              "tool_name",
+                              e.target.value
                             )
                           }
+                          className="w-full px-2 py-1 text-sm border rounded"
                           disabled={isSendingMessage}
-                        >
-                          <SelectTrigger className="w-full h-8 text-xs">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="text">text</SelectItem>
-                            <SelectItem value="image">image</SelectItem>
-                            <SelectItem value="audio">audio</SelectItem>
-                            <SelectItem value="video">video</SelectItem>
-                            <SelectItem value="file">file</SelectItem>
-                            <SelectItem value="tool-call">tool-call</SelectItem>
-                            <SelectItem value="tool-result">
-                              tool-result
-                            </SelectItem>
-                            <SelectItem value="data">data</SelectItem>
-                          </SelectContent>
-                        </Select>
+                        />
+                        <input
+                          type="text"
+                          placeholder="Tool Call ID"
+                          value={tc.tool_call_id}
+                          onChange={(e) =>
+                            handleUpdateToolCall(
+                              tc.id,
+                              "tool_call_id",
+                              e.target.value
+                            )
+                          }
+                          className="w-full px-2 py-1 text-sm border rounded"
+                          disabled={isSendingMessage}
+                        />
+                        <div className="border rounded overflow-hidden">
+                          <ReactCodeMirror
+                            value={tc.parameters}
+                            height="100px"
+                            theme={resolvedTheme === "dark" ? okaidia : "light"}
+                            extensions={[json(), EditorView.lineWrapping]}
+                            onChange={(value) =>
+                              handleUpdateToolCall(tc.id, "parameters", value)
+                            }
+                            editable={!isSendingMessage}
+                            basicSetup={{
+                              lineNumbers: true,
+                              foldGutter: false,
+                            }}
+                          />
+                        </div>
                       </div>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="h-6 w-6 shrink-0"
-                        onClick={() => handleRemoveFile(fileItem.id)}
-                        disabled={isSendingMessage}
-                      >
-                        <X className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Tool Results - only for user role */}
+            {newMessageRole === "user" && (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-sm font-medium">Tool Results</label>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={handleAddToolResult}
+                    disabled={isSendingMessage}
+                  >
+                    <Plus className="h-4 w-4 mr-1" />
+                    Add Tool Result
+                  </Button>
                 </div>
-              )}
-            </div>
+                {toolResults.length > 0 && (
+                  <div className="space-y-3">
+                    {toolResults.map((tr) => (
+                      <div
+                        key={tr.id}
+                        className="p-3 border rounded-md bg-secondary/20 space-y-2"
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-medium text-muted-foreground">
+                            Tool Result
+                          </span>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6"
+                            onClick={() => handleRemoveToolResult(tr.id)}
+                            disabled={isSendingMessage}
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
+                        <input
+                          type="text"
+                          placeholder="Tool Call ID"
+                          value={tr.tool_call_id}
+                          onChange={(e) =>
+                            handleUpdateToolResult(
+                              tr.id,
+                              "tool_call_id",
+                              e.target.value
+                            )
+                          }
+                          className="w-full px-2 py-1 text-sm border rounded"
+                          disabled={isSendingMessage}
+                        />
+                        <div className="border rounded overflow-hidden">
+                          <ReactCodeMirror
+                            value={tr.result}
+                            height="120px"
+                            theme={resolvedTheme === "dark" ? okaidia : "light"}
+                            extensions={[json(), EditorView.lineWrapping]}
+                            onChange={(value) =>
+                              handleUpdateToolResult(tr.id, "result", value)
+                            }
+                            editable={!isSendingMessage}
+                            basicSetup={{
+                              lineNumbers: true,
+                              foldGutter: false,
+                            }}
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button
@@ -593,7 +796,12 @@ export default function MessagesPage() {
               onClick={handleSendMessage}
               disabled={
                 isSendingMessage ||
-                (!newMessageText.trim() && uploadedFiles.length === 0)
+                !hasMessageContent(
+                  newMessageText,
+                  uploadedFiles,
+                  toolCalls,
+                  toolResults
+                )
               }
             >
               {isSendingMessage ? (
@@ -611,12 +819,12 @@ export default function MessagesPage() {
 
       {/* Message Detail Dialog */}
       <Dialog open={detailDialogOpen} onOpenChange={setDetailDialogOpen}>
-        <DialogContent className="max-w-4xl max-h-[85vh] overflow-y-auto">
+        <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col">
           <DialogHeader>
             <DialogTitle>{t("messageDetail")}</DialogTitle>
           </DialogHeader>
           {selectedMessage && (
-            <div className="rounded-md border bg-card p-6">
+            <div className="rounded-md border bg-card p-6 overflow-y-auto flex-1">
               {/* Message header */}
               <div className="border-b pb-4">
                 <h3 className="text-xl font-semibold mb-2">
@@ -681,7 +889,67 @@ export default function MessagesPage() {
                             </p>
                           </div>
                         )}
-                        {part.type !== "text" && (
+                        {part.type === "tool-call" && part.meta && (
+                          <div className="space-y-3">
+                            <div className="text-xs font-medium text-muted-foreground uppercase">
+                              Tool Call
+                            </div>
+                            <div className="space-y-2">
+                              <div>
+                                <p className="text-sm font-medium text-muted-foreground mb-1">
+                                  Tool Name
+                                </p>
+                                <p className="text-sm font-mono bg-muted px-2 py-1 rounded">
+                                  {part.meta.tool_name as string}
+                                </p>
+                              </div>
+                              <div>
+                                <p className="text-sm font-medium text-muted-foreground mb-1">
+                                  Tool Call ID
+                                </p>
+                                <p className="text-sm font-mono bg-muted px-2 py-1 rounded">
+                                  {part.meta.tool_call_id as string}
+                                </p>
+                              </div>
+                              <div>
+                                <p className="text-sm font-medium text-muted-foreground mb-1">
+                                  Parameters
+                                </p>
+                                <pre className="text-sm font-mono bg-muted px-2 py-1 rounded overflow-x-auto">
+                                  {JSON.stringify(part.meta.arguments, null, 2)}
+                                </pre>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                        {part.type === "tool-result" && part.meta && (
+                          <div className="space-y-3">
+                            <div className="text-xs font-medium text-muted-foreground uppercase">
+                              Tool Result
+                            </div>
+                            <div className="space-y-2">
+                              <div>
+                                <p className="text-sm font-medium text-muted-foreground mb-1">
+                                  Tool Call ID
+                                </p>
+                                <p className="text-sm font-mono bg-muted px-2 py-1 rounded">
+                                  {part.meta.tool_call_id as string}
+                                </p>
+                              </div>
+                              <div>
+                                <p className="text-sm font-medium text-muted-foreground mb-1">
+                                  Result
+                                </p>
+                                <pre className="text-sm font-mono bg-muted px-2 py-1 rounded overflow-x-auto whitespace-pre-wrap">
+                                  {typeof part.meta.result === "string"
+                                    ? part.meta.result
+                                    : JSON.stringify(part.meta.result, null, 2)}
+                                </pre>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                        {part.type !== "text" && part.type !== "tool-call" && part.type !== "tool-result" && (
                           <div className="space-y-3">
                             <div className="text-xs font-medium text-muted-foreground uppercase">
                               {part.type}
