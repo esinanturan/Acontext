@@ -144,12 +144,12 @@ func TestBlockService_Create_Page(t *testing.T) {
 			setup: func(repo *MockBlockRepo) {
 				parentBlock := &model.Block{
 					ID:   parentID,
-					Type: model.BlockTypeText, // text cannot have page children
+					Type: model.BlockTypeText, // text cannot have children
 				}
 				repo.On("Get", ctx, parentID).Return(parentBlock, nil)
 			},
 			wantErr: true,
-			errMsg:  "cannot be a child of",
+			errMsg:  "parent cannot have children",
 		},
 	}
 
@@ -318,7 +318,7 @@ func TestBlockService_Create_Text(t *testing.T) {
 			errMsg:  "cannot be a child of",
 		},
 		{
-			name: "text block under text block - valid",
+			name: "text block under text block - invalid (text cannot have children)",
 			block: &model.Block{
 				SpaceID:  spaceID,
 				ParentID: &parentID,
@@ -328,18 +328,15 @@ func TestBlockService_Create_Text(t *testing.T) {
 			setup: func(repo *MockBlockRepo) {
 				parentBlock := &model.Block{
 					ID:   parentID,
-					Type: model.BlockTypeText, // text can have text children
+					Type: model.BlockTypeText, // text cannot have children
 				}
 				repo.On("Get", ctx, parentID).Return(parentBlock, nil)
-				repo.On("NextSort", ctx, spaceID, &parentID).Return(int64(1), nil)
-				repo.On("Create", ctx, mock.MatchedBy(func(b *model.Block) bool {
-					return b.Type == "text" && b.Sort == 1
-				})).Return(nil)
 			},
-			wantErr: false,
+			wantErr: true,
+			errMsg:  "parent cannot have children",
 		},
 		{
-			name: "sop block under text block - valid",
+			name: "sop block under text block - invalid (text cannot have children)",
 			block: &model.Block{
 				SpaceID:  spaceID,
 				ParentID: &parentID,
@@ -349,15 +346,12 @@ func TestBlockService_Create_Text(t *testing.T) {
 			setup: func(repo *MockBlockRepo) {
 				parentBlock := &model.Block{
 					ID:   parentID,
-					Type: model.BlockTypeText,
+					Type: model.BlockTypeText, // text cannot have children
 				}
 				repo.On("Get", ctx, parentID).Return(parentBlock, nil)
-				repo.On("NextSort", ctx, spaceID, &parentID).Return(int64(1), nil)
-				repo.On("Create", ctx, mock.MatchedBy(func(b *model.Block) bool {
-					return b.Type == model.BlockTypeSOP && b.Sort == 1
-				})).Return(nil)
 			},
-			wantErr: false,
+			wantErr: true,
+			errMsg:  "parent cannot have children",
 		},
 	}
 
@@ -487,12 +481,12 @@ func TestBlockService_Create_Folder(t *testing.T) {
 			setup: func(repo *MockBlockRepo) {
 				parentBlock := &model.Block{
 					ID:   parentID,
-					Type: model.BlockTypeText, // text cannot be folder parents
+					Type: model.BlockTypeText, // text cannot have children
 				}
 				repo.On("Get", ctx, parentID).Return(parentBlock, nil)
 			},
 			wantErr: true,
-			errMsg:  "cannot be a child of",
+			errMsg:  "parent cannot have children",
 		},
 	}
 

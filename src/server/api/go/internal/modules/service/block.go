@@ -36,7 +36,7 @@ func NewBlockService(r repo.BlockRepo) BlockService { return &blockService{r: r}
 
 // validateAndPrepareCreate validates a block for creation and prepares its parent
 func (s *blockService) validateAndPrepareCreate(ctx context.Context, b *model.Block) (*model.Block, error) {
-	if err := b.ValidateForCreation(); err != nil {
+	if err := b.Validate(); err != nil {
 		return nil, err
 	}
 

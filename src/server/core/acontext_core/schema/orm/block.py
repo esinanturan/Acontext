@@ -36,7 +36,7 @@ BLOCK_TYPES = {
     },
     "text": {
         "name": "text",
-        "allow_children": True,
+        "allow_children": False,
         "require_parent": True,
         "props_schema": {
             "preferences": str,
@@ -44,7 +44,7 @@ BLOCK_TYPES = {
     },
     "sop": {
         "name": "sop",
-        "allow_children": True,
+        "allow_children": False,
         "require_parent": True,
         "props_schema": {
             "preferences": str,
