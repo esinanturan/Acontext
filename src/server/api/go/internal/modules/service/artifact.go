@@ -17,7 +17,7 @@ import (
 
 type ArtifactService interface {
 	Create(ctx context.Context, in CreateArtifactInput) (*model.Artifact, error)
-	DeleteByPath(ctx context.Context, diskID uuid.UUID, path string, filename string) error
+	DeleteByPath(ctx context.Context, projectID uuid.UUID, diskID uuid.UUID, path string, filename string) error
 	GetByPath(ctx context.Context, diskID uuid.UUID, path string, filename string) (*model.Artifact, error)
 	GetPresignedURL(ctx context.Context, artifact *model.Artifact, expire time.Duration) (string, error)
 	GetFileContent(ctx context.Context, artifact *model.Artifact) (*fileparser.FileContent, error)
@@ -80,18 +80,18 @@ func (s *artifactService) Create(ctx context.Context, in CreateArtifactInput) (*
 		AssetMeta: datatypes.NewJSONType(*asset),
 	}
 
-	if err := s.r.Create(ctx, artifact); err != nil {
+	if err := s.r.Create(ctx, in.ProjectID, artifact); err != nil {
 		return nil, fmt.Errorf("create artifact record: %w", err)
 	}
 
 	return artifact, nil
 }
 
-func (s *artifactService) DeleteByPath(ctx context.Context, diskID uuid.UUID, path string, filename string) error {
+func (s *artifactService) DeleteByPath(ctx context.Context, projectID uuid.UUID, diskID uuid.UUID, path string, filename string) error {
 	if path == "" || filename == "" {
 		return errors.New("path and filename are required")
 	}
-	return s.r.DeleteByPath(ctx, diskID, path, filename)
+	return s.r.DeleteByPath(ctx, projectID, diskID, path, filename)
 }
 
 func (s *artifactService) GetByPath(ctx context.Context, diskID uuid.UUID, path string, filename string) (*model.Artifact, error) {

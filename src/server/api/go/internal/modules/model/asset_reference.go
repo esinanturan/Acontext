@@ -7,6 +7,11 @@ import (
 	"gorm.io/datatypes"
 )
 
+// TODO: Fix race condition in concurrent scenarios. When multiple goroutines simultaneously
+// update the RefCount field, there's a risk of data races and incorrect reference counting.
+// Moving the reference count data to Redis with atomic operations (e.g., INCR/DECR) will
+// prevent race conditions and ensure thread-safe reference counting.
+
 // AssetReference tracks references to assets stored in S3
 // This allows for reference counting and safe deletion of assets
 type AssetReference struct {
@@ -14,11 +19,11 @@ type AssetReference struct {
 
 	// Project ID for multi-tenant isolation
 	// Assets are isolated per project for security and access control
-	ProjectID uuid.UUID `gorm:"type:uuid;not null;index:idx_project_sha256,priority:1" json:"project_id"`
+	ProjectID uuid.UUID `gorm:"type:uuid;not null;uniqueIndex:idx_project_sha256,priority:1" json:"project_id"`
 
 	// SHA256 hash as unique identifier for content-based deduplication
 	// Combined with ProjectID as composite unique key
-	SHA256 string `gorm:"type:char(64);not null;index:idx_project_sha256,priority:2;uniqueIndex:idx_project_sha256" json:"sha256"`
+	SHA256 string `gorm:"type:char(64);not null;uniqueIndex:idx_project_sha256,priority:2" json:"sha256"`
 
 	// Canonical S3 key - the first uploaded location or preferred location
 	// When same content is uploaded multiple times within a project, we keep only one copy

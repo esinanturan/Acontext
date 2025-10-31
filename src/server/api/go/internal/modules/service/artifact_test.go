@@ -20,13 +20,13 @@ type MockArtifactRepo struct {
 	mock.Mock
 }
 
-func (m *MockArtifactRepo) Create(ctx context.Context, f *model.Artifact) error {
-	args := m.Called(ctx, f)
+func (m *MockArtifactRepo) Create(ctx context.Context, projectID uuid.UUID, f *model.Artifact) error {
+	args := m.Called(ctx, projectID, f)
 	return args.Error(0)
 }
 
-func (m *MockArtifactRepo) DeleteByPath(ctx context.Context, diskID uuid.UUID, path string, filename string) error {
-	args := m.Called(ctx, diskID, path, filename)
+func (m *MockArtifactRepo) DeleteByPath(ctx context.Context, projectID uuid.UUID, diskID uuid.UUID, path string, filename string) error {
+	args := m.Called(ctx, projectID, diskID, path, filename)
 	return args.Error(0)
 }
 
@@ -194,18 +194,18 @@ func (s *testArtifactService) Create(ctx context.Context, in CreateArtifactInput
 		}),
 	}
 
-	if err := s.r.Create(ctx, file); err != nil {
+	if err := s.r.Create(ctx, in.ProjectID, file); err != nil {
 		return nil, err
 	}
 
 	return file, nil
 }
 
-func (s *testArtifactService) DeleteByPath(ctx context.Context, diskID uuid.UUID, path string, filename string) error {
+func (s *testArtifactService) DeleteByPath(ctx context.Context, projectID uuid.UUID, diskID uuid.UUID, path string, filename string) error {
 	if path == "" || filename == "" {
 		return errors.New("path and filename are required")
 	}
-	return s.r.DeleteByPath(ctx, diskID, path, filename)
+	return s.r.DeleteByPath(ctx, projectID, diskID, path, filename)
 }
 
 func (s *testArtifactService) GetByPath(ctx context.Context, diskID uuid.UUID, path string, filename string) (*model.Artifact, error) {
@@ -309,7 +309,7 @@ func TestArtifactService_Create(t *testing.T) {
 			setup: func(repo *MockArtifactRepo, s3 *MockArtifactS3Deps) {
 				repo.On("ExistsByPathAndFilename", mock.Anything, diskID, path, filename, (*uuid.UUID)(nil)).Return(false, nil)
 				s3.On("UploadFormFile", mock.Anything, mock.AnythingOfType("string"), fileHeader).Return(createTestAsset(), nil)
-				repo.On("Create", mock.Anything, mock.MatchedBy(func(f *model.Artifact) bool {
+				repo.On("Create", mock.Anything, projectID, mock.MatchedBy(func(f *model.Artifact) bool {
 					return f.DiskID == diskID && f.Path == path && f.Filename == filename
 				})).Return(nil)
 			},
@@ -337,7 +337,7 @@ func TestArtifactService_Create(t *testing.T) {
 			setup: func(repo *MockArtifactRepo, s3 *MockArtifactS3Deps) {
 				repo.On("ExistsByPathAndFilename", mock.Anything, diskID, path, filename, (*uuid.UUID)(nil)).Return(false, nil)
 				s3.On("UploadFormFile", mock.Anything, mock.AnythingOfType("string"), fileHeader).Return(createTestAsset(), nil)
-				repo.On("Create", mock.Anything, mock.Anything).Return(errors.New("create error"))
+				repo.On("Create", mock.Anything, projectID, mock.Anything).Return(errors.New("create error"))
 			},
 			expectError: true,
 			errorMsg:    "create error",

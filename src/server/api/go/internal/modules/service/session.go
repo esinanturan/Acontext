@@ -30,47 +30,54 @@ type SessionService interface {
 }
 
 type sessionService struct {
-	r         repo.SessionRepo
-	log       *zap.Logger
-	blob      *blob.S3Deps
-	publisher *mq.Publisher
-	cfg       *config.Config
+	sessionRepo        repo.SessionRepo
+	assetReferenceRepo repo.AssetReferenceRepo
+	log                *zap.Logger
+	s3                 *blob.S3Deps
+	publisher          *mq.Publisher
+	cfg                *config.Config
 }
 
-func NewSessionService(r repo.SessionRepo, log *zap.Logger, blob *blob.S3Deps, publisher *mq.Publisher, cfg *config.Config) SessionService {
+func NewSessionService(sessionRepo repo.SessionRepo, assetReferenceRepo repo.AssetReferenceRepo, log *zap.Logger, s3 *blob.S3Deps, publisher *mq.Publisher, cfg *config.Config) SessionService {
 	return &sessionService{
-		r:         r,
-		log:       log,
-		blob:      blob,
-		publisher: publisher,
-		cfg:       cfg,
+		sessionRepo:        sessionRepo,
+		assetReferenceRepo: assetReferenceRepo,
+		log:                log,
+		s3:                 s3,
+		publisher:          publisher,
+		cfg:                cfg,
 	}
 }
 
 func (s *sessionService) Create(ctx context.Context, ss *model.Session) error {
-	return s.r.Create(ctx, ss)
+	return s.sessionRepo.Create(ctx, ss)
 }
 
 func (s *sessionService) Delete(ctx context.Context, projectID uuid.UUID, sessionID uuid.UUID) error {
 	if len(sessionID) == 0 {
 		return errors.New("space id is empty")
 	}
-	return s.r.Delete(ctx, &model.Session{ID: sessionID, ProjectID: projectID})
+
+	if err := s.sessionRepo.Delete(ctx, projectID, sessionID); err != nil {
+		return fmt.Errorf("delete session: %w", err)
+	}
+
+	return nil
 }
 
 func (s *sessionService) UpdateByID(ctx context.Context, ss *model.Session) error {
-	return s.r.Update(ctx, ss)
+	return s.sessionRepo.Update(ctx, ss)
 }
 
 func (s *sessionService) GetByID(ctx context.Context, ss *model.Session) (*model.Session, error) {
 	if len(ss.ID) == 0 {
 		return nil, errors.New("space id is empty")
 	}
-	return s.r.Get(ctx, ss)
+	return s.sessionRepo.Get(ctx, ss)
 }
 
 func (s *sessionService) List(ctx context.Context, projectID uuid.UUID, spaceID *uuid.UUID, notConnected bool) ([]model.Session, error) {
-	return s.r.List(ctx, projectID, spaceID, notConnected)
+	return s.sessionRepo.List(ctx, projectID, spaceID, notConnected)
 }
 
 type SendMessageInput struct {
@@ -158,9 +165,13 @@ func (s *sessionService) SendMessage(ctx context.Context, in SendMessageInput) (
 			}
 
 			// upload asset to S3
-			asset, err := s.blob.UploadFormFile(ctx, "assets/"+in.ProjectID.String(), fh)
+			asset, err := s.s3.UploadFormFile(ctx, "assets/"+in.ProjectID.String(), fh)
 			if err != nil {
 				return nil, fmt.Errorf("upload %s failed: %w", p.FileField, err)
+			}
+
+			if err := s.assetReferenceRepo.IncrementAssetRef(ctx, in.ProjectID, *asset); err != nil {
+				return nil, fmt.Errorf("increment asset reference: %w", err)
 			}
 
 			part.Asset = asset
@@ -175,9 +186,13 @@ func (s *sessionService) SendMessage(ctx context.Context, in SendMessageInput) (
 	}
 
 	// upload parts to S3 as JSON file
-	asset, err := s.blob.UploadJSON(ctx, "parts/"+in.ProjectID.String(), parts)
+	asset, err := s.s3.UploadJSON(ctx, "parts/"+in.ProjectID.String(), parts)
 	if err != nil {
 		return nil, fmt.Errorf("upload parts to S3 failed: %w", err)
+	}
+
+	if err := s.assetReferenceRepo.IncrementAssetRef(ctx, in.ProjectID, *asset); err != nil {
+		return nil, fmt.Errorf("increment asset reference: %w", err)
 	}
 
 	// Prepare message metadata
@@ -187,14 +202,14 @@ func (s *sessionService) SendMessage(ctx context.Context, in SendMessageInput) (
 	}
 
 	msg := model.Message{
-		SessionID: in.SessionID,
-		Role:      in.Role,
-		Meta:      datatypes.NewJSONType(messageMeta), // Store message-level metadata
-		PartsMeta: datatypes.NewJSONType(*asset),
-		Parts:     parts,
+		SessionID:      in.SessionID,
+		Role:           in.Role,
+		Meta:           datatypes.NewJSONType(messageMeta), // Store message-level metadata
+		PartsAssetMeta: datatypes.NewJSONType(*asset),
+		Parts:          parts,
 	}
 
-	if err := s.r.CreateMessageWithAssets(ctx, &msg); err != nil {
+	if err := s.sessionRepo.CreateMessageWithAssets(ctx, &msg); err != nil {
 		return nil, err
 	}
 
@@ -245,18 +260,18 @@ func (s *sessionService) GetMessages(ctx context.Context, in GetMessagesInput) (
 	}
 
 	// Query limit+1 is used to determine has_more
-	msgs, err := s.r.ListBySessionWithCursor(ctx, in.SessionID, afterT, afterID, in.Limit+1, in.TimeDesc)
+	msgs, err := s.sessionRepo.ListBySessionWithCursor(ctx, in.SessionID, afterT, afterID, in.Limit+1, in.TimeDesc)
 	if err != nil {
 		return nil, err
 	}
 
 	for i, m := range msgs {
-		meta := m.PartsMeta.Data()
+		meta := m.PartsAssetMeta.Data()
 
 		// Only download parts if blob service is available
-		if s.blob != nil {
+		if s.s3 != nil {
 			parts := []model.Part{}
-			if err := s.blob.DownloadJSON(ctx, meta.S3Key, &parts); err != nil {
+			if err := s.s3.DownloadJSON(ctx, meta.S3Key, &parts); err != nil {
 				continue
 			}
 			msgs[i].Parts = parts
@@ -274,14 +289,14 @@ func (s *sessionService) GetMessages(ctx context.Context, in GetMessagesInput) (
 		out.NextCursor = paging.EncodeCursor(last.CreatedAt, last.ID)
 	}
 
-	if in.WithAssetPublicURL && s.blob != nil {
+	if in.WithAssetPublicURL && s.s3 != nil {
 		out.PublicURLs = make(map[string]PublicURL)
 		for _, m := range out.Items {
 			for _, p := range m.Parts {
 				if p.Asset == nil {
 					continue
 				}
-				url, err := s.blob.PresignGet(ctx, p.Asset.S3Key, in.AssetExpire)
+				url, err := s.s3.PresignGet(ctx, p.Asset.S3Key, in.AssetExpire)
 				if err != nil {
 					return nil, fmt.Errorf("get presigned url for asset %s: %w", p.Asset.S3Key, err)
 				}

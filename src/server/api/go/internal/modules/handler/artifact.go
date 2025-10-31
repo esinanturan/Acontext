@@ -131,6 +131,12 @@ type DeleteArtifactReq struct {
 //	@Success		200	{object}	serializer.Response{}
 //	@Router			/disk/{disk_id}/artifact [delete]
 func (h *ArtifactHandler) DeleteArtifact(c *gin.Context) {
+	project, ok := c.MustGet("project").(*model.Project)
+	if !ok {
+		c.JSON(http.StatusBadRequest, serializer.ParamErr("", errors.New("project not found")))
+		return
+	}
+
 	req := DeleteArtifactReq{}
 	if err := c.ShouldBind(&req); err != nil {
 		c.JSON(http.StatusBadRequest, serializer.ParamErr("", err))
@@ -152,7 +158,7 @@ func (h *ArtifactHandler) DeleteArtifact(c *gin.Context) {
 		return
 	}
 
-	if err := h.svc.DeleteByPath(c.Request.Context(), diskID, filePath, filename); err != nil {
+	if err := h.svc.DeleteByPath(c.Request.Context(), project.ID, diskID, filePath, filename); err != nil {
 		c.JSON(http.StatusInternalServerError, serializer.DBErr("", err))
 		return
 	}

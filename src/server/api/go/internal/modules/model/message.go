@@ -27,8 +27,8 @@ type Message struct {
 
 	Meta datatypes.JSONType[map[string]any] `gorm:"type:jsonb;not null;default:'{}'" swaggertype:"object" json:"meta"`
 
-	PartsMeta datatypes.JSONType[Asset] `gorm:"type:jsonb;not null" swaggertype:"-" json:"-"`
-	Parts     []Part                    `gorm:"-" swaggertype:"array,object" json:"parts"`
+	PartsAssetMeta datatypes.JSONType[Asset] `gorm:"type:jsonb;not null" swaggertype:"-" json:"-"`
+	Parts          []Part                    `gorm:"-" swaggertype:"array,object" json:"parts"`
 
 	TaskID *uuid.UUID `gorm:"type:uuid;index" json:"task_id"`
 

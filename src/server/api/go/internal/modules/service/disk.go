@@ -6,7 +6,6 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
-	"github.com/memodb-io/Acontext/internal/infra/blob"
 	"github.com/memodb-io/Acontext/internal/modules/model"
 	"github.com/memodb-io/Acontext/internal/modules/repo"
 )
@@ -17,13 +16,10 @@ type DiskService interface {
 	List(ctx context.Context, projectID uuid.UUID) ([]*model.Disk, error)
 }
 
-type diskService struct {
-	r  repo.DiskRepo
-	s3 *blob.S3Deps
-}
+type diskService struct{ r repo.DiskRepo }
 
-func NewDiskService(r repo.DiskRepo, s3 *blob.S3Deps) DiskService {
-	return &diskService{r: r, s3: s3}
+func NewDiskService(r repo.DiskRepo) DiskService {
+	return &diskService{r: r}
 }
 
 func (s *diskService) Create(ctx context.Context, projectID uuid.UUID) (*model.Disk, error) {
