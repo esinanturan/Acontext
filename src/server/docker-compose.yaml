@@ -84,7 +84,11 @@ services:
     volumes:
       - ${S3_LOCATION}:/data
     healthcheck:
-      test: ["CMD-SHELL", "wget -q -O- http://127.0.0.1:9333/cluster/status || exit 1"]
+      test:
+        [
+          "CMD-SHELL",
+          "wget -q -O- http://127.0.0.1:9333/cluster/status || exit 1",
+        ]
       interval: 30s
       timeout: 5s
       retries: 5
@@ -107,6 +111,32 @@ services:
       echo '✅ SeaweedFS ready with bucket: ${S3_BUCKET}'
       "
     restart: "no"
+
+  acontext-server-core:
+    build:
+      context: ./core
+      dockerfile: Dockerfile
+    container_name: acontext-server-core
+    restart: unless-stopped
+    environment:
+      LLM_BASE_URL: ${LLM_BASE_URL}
+      LLM_API_KEY: ${LLM_API_KEY}
+      LLM_SDK: ${LLM_SDK}
+      DATABASE_URL: postgresql://acontext:helloworld@acontext-server-pg:5432/acontext
+      MQ_URL: amqp://acontext:helloworld@acontext-server-rabbitmq:5672/
+      REDIS_URL: redis://:helloworld@acontext-server-redis:6379
+      S3_ENDPOINT: http://acontext-server-seaweedfs:9000
+    ports:
+      - "8019:8000"
+    depends_on:
+      acontext-server-pg:
+        condition: service_healthy
+      acontext-server-redis:
+        condition: service_healthy
+      acontext-server-rabbitmq:
+        condition: service_healthy
+      acontext-server-seaweedfs:
+        condition: service_healthy
 
   # acontext-server-api
   acontext-server-api:
@@ -141,16 +171,10 @@ services:
     ports:
       - "${API_EXPORT_PORT:-8029}:8029"
     depends_on:
-      acontext-server-pg:
-        condition: service_healthy
-      acontext-server-redis:
-        condition: service_healthy
-      acontext-server-rabbitmq:
-        condition: service_healthy
-      acontext-server-seaweedfs:
-        condition: service_healthy
+      - acontext-server-core
 
-  # acontext-server-ui
+  # acontext-server-core
+
   acontext-server-ui:
     build:
       context: ./ui
