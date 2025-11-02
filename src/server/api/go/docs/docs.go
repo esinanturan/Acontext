@@ -961,6 +961,13 @@ const docTemplate = `{
                         "description": "Cursor for pagination. Use the cursor from the previous response to get the next page.",
                         "name": "cursor",
                         "in": "query"
+                    },
+                    {
+                        "type": "boolean",
+                        "example": false,
+                        "description": "Order by created_at descending if true, ascending if false (default false)",
+                        "name": "time_desc",
+                        "in": "query"
                     }
                 ],
                 "responses": {

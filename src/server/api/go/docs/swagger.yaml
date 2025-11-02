@@ -1040,6 +1040,12 @@ paths:
         in: query
         name: cursor
         type: string
+      - description: Order by created_at descending if true, ascending if false (default
+          false)
+        example: false
+        in: query
+        name: time_desc
+        type: boolean
       produces:
       - application/json
       responses:
