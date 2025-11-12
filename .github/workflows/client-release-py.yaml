@@ -1,13 +1,13 @@
 name: Python Client Release
 
 on:
-  release:
-    types: [published]
+  push:
+    tags:
+      - 'sdk-py/v*.*.*'
   workflow_dispatch:
 
 permissions:
-  contents: read
-  id-token: write
+  contents: write
 
 jobs:
   publish:
@@ -37,3 +37,21 @@ jobs:
 
       - name: Publish to PyPI
         run: uv publish
+
+      - name: Extract version from tag
+        id: version
+        run: |
+          TAG_NAME=${GITHUB_REF#refs/tags/sdk-py/v}
+          echo "version=$TAG_NAME" >> $GITHUB_OUTPUT
+
+      # TODO: add changelog generation
+      - name: Generate Changelog
+        run: |
+          echo "# Python SDK ${{ steps.version.outputs.version }}" > ${{ github.workspace }}-CHANGELOG.txt
+          echo "" >> ${{ github.workspace }}-CHANGELOG.txt
+          echo "Published to https://pypi.org/project/acontext/${{ steps.version.outputs.version }}/" >> ${{ github.workspace }}-CHANGELOG.txt
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          body_path: ${{ github.workspace }}-CHANGELOG.txt
