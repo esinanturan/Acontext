@@ -196,15 +196,47 @@ function SortableBlockItem({ block, index, onEdit, onDelete, t }: SortableBlockI
                 </div>
               )}
 
-            {/* Steps - TODO: Need to load tool_sops data */}
-            <div>
-              <h3 className="text-sm font-semibold text-muted-foreground mb-2">
-                {t("steps")}
-              </h3>
-              <div className="text-sm text-muted-foreground italic">
-                {t("stepsPlaceholder")}
-              </div>
-            </div>
+            {/* Steps */}
+            {block.props?.tool_sops &&
+              Array.isArray(block.props.tool_sops) &&
+              block.props.tool_sops.length > 0 && (
+                <div>
+                  <h3 className="text-sm font-semibold text-muted-foreground mb-2">
+                    {t("steps")}
+                  </h3>
+                  <div className="space-y-2">
+                    {(block.props.tool_sops as Array<{
+                      tool_name: string;
+                      action: string;
+                    }>).map((step, index) => (
+                      <div
+                        key={index}
+                        className="flex gap-3 p-3 bg-muted/30 rounded-md border"
+                      >
+                        <div className="flex-shrink-0 w-6 h-6 rounded-full bg-primary/10 text-primary flex items-center justify-center text-xs font-semibold">
+                          {index + 1}
+                        </div>
+                        <div className="flex-1 space-y-1">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-semibold text-muted-foreground uppercase">
+                              Tool:
+                            </span>
+                            <code className="text-sm font-mono bg-background px-2 py-0.5 rounded border">
+                              {step.tool_name}
+                            </code>
+                          </div>
+                          <div>
+                            <span className="text-xs font-semibold text-muted-foreground uppercase">
+                              Action:
+                            </span>
+                            <p className="text-sm mt-1">{step.action}</p>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
           </>
         )}
 
