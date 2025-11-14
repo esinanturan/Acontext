@@ -56,6 +56,8 @@ func BuildContainer() *do.Injector {
 				&model.Disk{},
 				&model.Artifact{},
 				&model.AssetReference{},
+				&model.ToolReference{},
+				&model.ToolSOP{},
 			)
 		}
 

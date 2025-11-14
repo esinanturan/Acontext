@@ -6,6 +6,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/memodb-io/Acontext/internal/modules/model"
+	"gorm.io/datatypes"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -36,7 +37,19 @@ func (r *blockRepo) Delete(ctx context.Context, spaceID uuid.UUID, id uuid.UUID)
 
 func (r *blockRepo) Get(ctx context.Context, id uuid.UUID) (*model.Block, error) {
 	var b model.Block
-	return &b, r.db.WithContext(ctx).Where(&model.Block{ID: id}).First(&b).Error
+	err := r.db.WithContext(ctx).
+		Preload("ToolSOPs.ToolReference").
+		Where(&model.Block{ID: id}).
+		First(&b).Error
+
+	if err != nil {
+		return &b, err
+	}
+
+	// Merge ToolSOPs into Props for SOP blocks
+	r.mergeToolSOPsIntoProps(&b)
+
+	return &b, nil
 }
 
 func (r *blockRepo) Update(ctx context.Context, b *model.Block) error {
@@ -45,7 +58,9 @@ func (r *blockRepo) Update(ctx context.Context, b *model.Block) error {
 
 func (r *blockRepo) ListBySpace(ctx context.Context, spaceID uuid.UUID, blockType string, parentID *uuid.UUID) ([]model.Block, error) {
 	var list []model.Block
-	query := r.db.WithContext(ctx).Where(&model.Block{SpaceID: spaceID})
+	query := r.db.WithContext(ctx).
+		Preload("ToolSOPs.ToolReference").
+		Where(&model.Block{SpaceID: spaceID})
 
 	if blockType != "" {
 		query = query.Where("type = ?", blockType)
@@ -58,7 +73,17 @@ func (r *blockRepo) ListBySpace(ctx context.Context, spaceID uuid.UUID, blockTyp
 	}
 
 	err := query.Order("type ASC, sort ASC").Find(&list).Error
-	return list, err
+
+	if err != nil {
+		return list, err
+	}
+
+	// Merge ToolSOPs into Props for SOP blocks
+	for i := range list {
+		r.mergeToolSOPsIntoProps(&list[i])
+	}
+
+	return list, nil
 }
 
 // NextSort returns max(sort)+1 within group (space_id, parent_id)
@@ -212,4 +237,35 @@ func (r *blockRepo) buildGroupQuery(tx *gorm.DB, spaceID uuid.UUID, parentID *uu
 		return query.Where("parent_id IS NULL")
 	}
 	return query.Where("parent_id = ?", *parentID)
+}
+
+// mergeToolSOPsIntoProps merges ToolSOPs data into the Props field for SOP blocks
+func (r *blockRepo) mergeToolSOPsIntoProps(b *model.Block) {
+	// Only merge for SOP blocks that have ToolSOPs
+	if b.Type != model.BlockTypeSOP || len(b.ToolSOPs) == 0 {
+		return
+	}
+
+	propsData := b.Props.Data()
+	if propsData == nil {
+		propsData = make(map[string]any)
+	}
+
+	// Convert ToolSOPs to a serializable format (only include tool name)
+	sops := make([]map[string]any, len(b.ToolSOPs))
+	for i, sop := range b.ToolSOPs {
+		sopData := map[string]any{
+			"action": sop.Action,
+		}
+
+		// Add tool name if ToolReference is loaded
+		if sop.ToolReference != nil {
+			sopData["tool_name"] = sop.ToolReference.Name
+		}
+
+		sops[i] = sopData
+	}
+
+	propsData["tool_sops"] = sops
+	b.Props = datatypes.NewJSONType(propsData)
 }
