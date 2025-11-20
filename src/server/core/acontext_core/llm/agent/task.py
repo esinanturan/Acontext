@@ -12,10 +12,12 @@ from ...util.generate_ids import track_process
 from ..tool.task_lib.ctx import TaskCtx
 from ..tool.task_lib.insert import _insert_task_tool
 from ..tool.task_lib.update import _update_task_tool
+from ..tool.task_lib.append import _append_messages_to_task_tool
 
 NEED_UPDATE_CTX = {
     _insert_task_tool.schema.function.name,
     _update_task_tool.schema.function.name,
+    _append_messages_to_task_tool.schema.function.name,
 }
 
 

@@ -1,6 +1,6 @@
 from .sop_lib.submit import _submit_sop_tool
-from .sop_lib.ctx import SOPCtx
-from .util_lib.think import _thinking_tool
+from .sop_lib.ctx import SOPCtx  # noqa: F401
+from .sop_lib.think import _thinking_tool
 from .base import ToolPool
 
 SOP_TOOLS: ToolPool = {}

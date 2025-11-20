@@ -51,6 +51,12 @@ async def _append_messages_to_task_handler(
         )
         if not r.ok():
             return r
+    if actually_task.status != TaskStatus.RUNNING:
+        r = await TD.update_task(
+            ctx.db_session,
+            actually_task_id,
+            status="running",
+        )
     return Result.resolve(
         f"Messages {message_order_indexes} and progress are appended to task {task_order}"
     )

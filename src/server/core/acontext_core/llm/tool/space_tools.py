@@ -13,7 +13,7 @@ from .space_lib.insert_candidate_data_as_content import (
 )
 from .util_lib.think import _thinking_tool
 from .base import ToolPool
-from .space_lib.ctx import SpaceCtx
+from .space_lib.ctx import SpaceCtx  # noqa: F401
 
 SPACE_TOOLS: ToolPool = {}
 

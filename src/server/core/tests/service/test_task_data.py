@@ -1,17 +1,16 @@
 import pytest
 import uuid
 from sqlalchemy import select, func
-from sqlalchemy.ext.asyncio import AsyncSession
 from acontext_core.service.data.task import (
     fetch_current_tasks,
     update_task,
     insert_task,
     delete_task,
     append_progress_to_task,
+    append_sop_thinking_to_task,
 )
 from acontext_core.schema.orm import Task, Project, Space, Session
 from acontext_core.schema.result import Result
-from acontext_core.schema.error_code import Code
 from acontext_core.infra.db import DatabaseClient
 
 
@@ -97,7 +96,7 @@ class TestFetchCurrentTasks:
             if existing_project:
                 await session.delete(existing_project)
                 await session.flush()
-            
+
             # Create test data
             project = Project(
                 secret_key_hmac="test_key_hmac2", secret_key_hash_phc="test_key_hash2"
@@ -177,7 +176,7 @@ class TestUpdateTask:
             if existing_project:
                 await session.delete(existing_project)
                 await session.flush()
-            
+
             # Create test data
             project = Project(
                 secret_key_hmac="test_key_hmac3", secret_key_hash_phc="test_key_hash3"
@@ -1436,3 +1435,188 @@ class TestAppendProgressToTask:
             assert data is None
             assert error is not None
             assert "not found" in error.errmsg
+
+
+class TestAppendSopThinkingToTask:
+    @pytest.mark.asyncio
+    async def test_append_sop_thinking_success(self):
+        """Test appending sop_thinking to a task using JSONB update"""
+        db_client = DatabaseClient()
+        await db_client.create_tables()
+
+        async with db_client.get_session_context() as session:
+            # Create test data
+            project = Project(
+                secret_key_hmac="test_key_hmac_sop_thinking1",
+                secret_key_hash_phc="test_key_hash_sop_thinking1",
+            )
+            session.add(project)
+            await session.flush()
+
+            space = Space(project_id=project.id)
+            session.add(space)
+            await session.flush()
+
+            test_session = Session(project_id=project.id, space_id=space.id)
+            session.add(test_session)
+            await session.flush()
+
+            # Create task with initial data
+            initial_data = {"task_description": "Test SOP task"}
+            task = Task(
+                session_id=test_session.id,
+                project_id=project.id,
+                order=1,
+                data=initial_data,
+                status="running",
+            )
+            session.add(task)
+            await session.flush()
+
+            # Append sop_thinking
+            thinking_text = "This is my thinking about the task"
+            result = await append_sop_thinking_to_task(session, task.id, thinking_text)
+
+            # Verify result
+            data, error = result.unpack()
+            assert error is None
+            assert data is None  # Function returns None on success
+
+            # Verify the thinking was appended
+            await session.refresh(task)
+            assert "sop_thinking" in task.data
+            assert task.data["sop_thinking"] == thinking_text
+            # Verify original data is preserved
+            assert task.data["task_description"] == "Test SOP task"
+
+            await session.delete(project)
+
+    @pytest.mark.asyncio
+    async def test_append_sop_thinking_overwrites_existing(self):
+        """Test that appending sop_thinking overwrites existing value"""
+        db_client = DatabaseClient()
+        await db_client.create_tables()
+
+        async with db_client.get_session_context() as session:
+            # Create test data
+            project = Project(
+                secret_key_hmac="test_key_hmac_sop_thinking2",
+                secret_key_hash_phc="test_key_hash_sop_thinking2",
+            )
+            session.add(project)
+            await session.flush()
+
+            space = Space(project_id=project.id)
+            session.add(space)
+            await session.flush()
+
+            test_session = Session(project_id=project.id, space_id=space.id)
+            session.add(test_session)
+            await session.flush()
+
+            # Create task with existing sop_thinking
+            initial_data = {
+                "task_description": "Test SOP task",
+                "sop_thinking": "Old thinking",
+            }
+            task = Task(
+                session_id=test_session.id,
+                project_id=project.id,
+                order=1,
+                data=initial_data,
+                status="running",
+            )
+            session.add(task)
+            await session.flush()
+
+            # Append new sop_thinking
+            new_thinking = "New thinking that replaces old"
+            result = await append_sop_thinking_to_task(session, task.id, new_thinking)
+
+            # Verify result
+            data, error = result.unpack()
+            assert error is None
+
+            # Verify the thinking was updated
+            await session.refresh(task)
+            assert task.data["sop_thinking"] == new_thinking
+            assert task.data["sop_thinking"] != "Old thinking"
+
+            await session.delete(project)
+
+    @pytest.mark.asyncio
+    async def test_append_sop_thinking_task_not_found(self):
+        """Test appending sop_thinking to non-existent task"""
+        db_client = DatabaseClient()
+        await db_client.create_tables()
+
+        async with db_client.get_session_context() as session:
+            # Try to append thinking to non-existent task
+            fake_task_id = uuid.uuid4()
+            result = await append_sop_thinking_to_task(
+                session, fake_task_id, "Some thinking"
+            )
+
+            # Verify error
+            data, error = result.unpack()
+            assert data is None
+            assert error is not None
+            assert "not found" in error.errmsg
+
+    @pytest.mark.asyncio
+    async def test_append_sop_thinking_preserves_other_fields(self):
+        """Test that appending sop_thinking preserves other JSONB fields"""
+        db_client = DatabaseClient()
+        await db_client.create_tables()
+
+        async with db_client.get_session_context() as session:
+            # Create test data
+            project = Project(
+                secret_key_hmac="test_key_hmac_sop_thinking3",
+                secret_key_hash_phc="test_key_hash_sop_thinking3",
+            )
+            session.add(project)
+            await session.flush()
+
+            space = Space(project_id=project.id)
+            session.add(space)
+            await session.flush()
+
+            test_session = Session(project_id=project.id, space_id=space.id)
+            session.add(test_session)
+            await session.flush()
+
+            # Create task with complex data
+            initial_data = {
+                "task_description": "Complex task",
+                "progresses": ["Step 1", "Step 2"],
+                "metadata": {"key1": "value1", "key2": "value2"},
+                "status_info": "In progress",
+            }
+            task = Task(
+                session_id=test_session.id,
+                project_id=project.id,
+                order=1,
+                data=initial_data.copy(),
+                status="running",
+            )
+            session.add(task)
+            await session.flush()
+
+            # Append sop_thinking
+            thinking_text = "Detailed thinking process"
+            result = await append_sop_thinking_to_task(session, task.id, thinking_text)
+
+            # Verify result
+            data, error = result.unpack()
+            assert error is None
+
+            # Verify all fields are preserved and sop_thinking is added
+            await session.refresh(task)
+            assert task.data["sop_thinking"] == thinking_text
+            assert task.data["task_description"] == initial_data["task_description"]
+            assert task.data["progresses"] == initial_data["progresses"]
+            assert task.data["metadata"] == initial_data["metadata"]
+            assert task.data["status_info"] == initial_data["status_info"]
+
+            await session.delete(project)

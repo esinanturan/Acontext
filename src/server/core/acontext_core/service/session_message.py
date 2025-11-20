@@ -191,7 +191,7 @@ async def flush_session_message_blocking(
         )
         if _l:
             break
-        LOG.info(
+        LOG.debug(
             f"Current Session is locked. "
             f"wait {DEFAULT_CORE_CONFIG.session_message_session_lock_wait_seconds} seconds for next resend. "
         )

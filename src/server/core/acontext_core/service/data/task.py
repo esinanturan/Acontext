@@ -281,3 +281,22 @@ async def append_messages_to_planning_section(
     planning_section_id = planning_task.id
     r = await append_messages_to_task(db_session, message_ids, planning_section_id)
     return r
+
+
+async def append_sop_thinking_to_task(
+    db_session: AsyncSession,
+    task_id: asUUID,
+    thinking: str,
+) -> Result[None]:
+    stmt = (
+        update(Task)
+        .where(Task.id == task_id)
+        .values(data=Task.data.op("||")({"sop_thinking": thinking}))
+    )
+    result = await db_session.execute(stmt)
+
+    if result.rowcount == 0:
+        return Result.reject(f"Task {task_id} not found")
+
+    await db_session.flush()
+    return Result.resolve(None)
