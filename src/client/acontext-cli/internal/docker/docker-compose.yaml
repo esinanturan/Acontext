@@ -138,6 +138,8 @@ services:
         condition: service_healthy
       acontext-server-seaweedfs:
         condition: service_healthy
+      acontext-server-seaweedfs-setup:
+        condition: service_completed_successfully
 
   # acontext-server-api
   acontext-server-api:
@@ -177,7 +179,10 @@ services:
       timeout: 5s
       retries: 5
     depends_on:
-      - acontext-server-core
+      acontext-server-core:
+        condition: service_started
+      acontext-server-seaweedfs-setup:
+        condition: service_completed_successfully
 
   # acontext-server-ui
   acontext-server-ui:
