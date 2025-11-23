@@ -29,7 +29,13 @@
                 "group": "Messages",
                 "pages": [
                   "store/messages/multi-provider",
-                  "store/messages/multi-modal"
+                  "store/messages/multi-modal",
+                  {
+                    "group": "Message Metadata",
+                    "pages": [
+                      "store/messages/special/anthropic"
+                    ]
+                  }
                 ]
               },
               "store/disk"
