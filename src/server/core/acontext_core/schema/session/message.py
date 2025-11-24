@@ -24,7 +24,10 @@ def pack_part_line(
         r = f"{header} {part.text}"
     elif part.type == "tool-call":
         tool_call_meta = ToolCallMeta(**part.meta)
-        if isinstance(tool_call_meta.arguments, str):
+        if (
+            isinstance(tool_call_meta.arguments, str)
+            and tool_call_meta.arguments.strip() != ""
+        ):
             arguments = json.loads(tool_call_meta.arguments)
         else:
             arguments = tool_call_meta.arguments
