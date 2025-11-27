@@ -83,7 +83,7 @@ para que tu agente pueda ser más estable y brindar mayor valor a tus usuarios.
                   │         └────────┬────────┘
                   │                  │
                   │         ┌────────▼────────┐
-                  │         │  Space (learn)  │
+                  │         │  Space (learn)  │ # or wait for user confirmation
                   │         └────────┬────────┘
                   │                  │
                   └──────────────────┘
@@ -133,10 +133,13 @@ curl -fsSL https://install.acontext.io | sh
 Deberías tener [docker](https://www.docker.com/get-started/) instalado y una Clave API de OpenAI para iniciar un backend de Acontext en tu computadora:
 
 ```bash
+mkdir acontext_server && cd acontext_server
 acontext docker up
 ```
 
 > [📖 configuración local](https://docs.acontext.io/local#start-acontext-server-locally) Acontext requiere al menos una Clave API de OpenAI. Recomendamos `gpt-5.1` o `gpt-4.1` como modelo LLM
+
+`acontext docker up` creará/usará `.env` y `config.yaml` para Acontext, y creará una carpeta `db` para persistir datos.
 
 
 
@@ -162,34 +165,29 @@ Una vez completado, puedes acceder a los siguientes endpoints:
 
 Descarga scripts de extremo a extremo con `acontext`:
 
-**OpenAI SDK + Acontext** (python)
+**Python**
 
 ```bash
 acontext create my-proj --template-path "python/openai-basic"
 ```
-**OpenAI SDK + Acontext** (typescript)
+
+> Más ejemplos en Python:
+>
+> - `python/openai-agent-basic`: agente de autoaprendizaje en openai agent sdk.
+> - `python/agno-basic`: agente de autoaprendizaje en agno framework.
+> - `python/openai-agent-artifacts`: agente que puede editar y descargar artefactos.
+
+**Typescript**
 
 ```bash
 acontext create my-proj --template-path "typescript/openai-basic"
 ```
 
-**OpenAI Agent SDK + Acontext** (python)
+> Más ejemplos en Typescript:
+>
+> - `typescript/vercel-ai-basic`: agente de autoaprendizaje en @vercel/ai-sdk
 
-```bash
-acontext create my-proj --template-path "python/openai-agent-basic"
-```
 
-**Agno + Acontext** (python)
-
-```bash
-acontext create my-proj --template-path "python/agno-basic"
-```
-
-**vercel/ai-sdk + Acontext** (typescript)
-
-```bash
-acontext create my-proj --template-path "typescript/vercel-ai-basic"
-```
 
 Consulta nuestro repositorio de ejemplos para más plantillas: [Acontext-Examples](https://github.com/memodb-io/Acontext-Examples).
 

@@ -83,7 +83,7 @@ Acontextは、以下の機能を提供するコンテキストデータプラッ
                   │         └────────┬────────┘
                   │                  │
                   │         ┌────────▼────────┐
-                  │         │  Space (learn)  │
+                  │         │  Space (learn)  │ # or wait for user confirmation
                   │         └────────┬────────┘
                   │                  │
                   └──────────────────┘
@@ -133,10 +133,13 @@ curl -fsSL https://install.acontext.io | sh
 コンピューターでAcontextバックエンドを起動するには、[docker](https://www.docker.com/get-started/)がインストールされ、OpenAI APIキーが必要です：
 
 ```bash
+mkdir acontext_server && cd acontext_server
 acontext docker up
 ```
 
 > [📖 ローカル設定](https://docs.acontext.io/local#start-acontext-server-locally) Acontextには少なくともOpenAI APIキーが必要です。LLMモデルとして`gpt-5.1`または`gpt-4.1`を推奨します
+
+`acontext docker up`は、Acontext用の`.env`と`config.yaml`を作成/使用し、データを永続化するための`db`フォルダを作成します。
 
 
 
@@ -162,34 +165,29 @@ acontext docker up
 
 `acontext`でエンドツーエンドスクリプトをダウンロード：
 
-**OpenAI SDK + Acontext** (python)
+**Python**
 
 ```bash
 acontext create my-proj --template-path "python/openai-basic"
 ```
-**OpenAI SDK + Acontext** (typescript)
+
+> Pythonのその他の例：
+>
+> - `python/openai-agent-basic`: openai agent sdkの自己学習エージェント。
+> - `python/agno-basic`: agno frameworkの自己学習エージェント。
+> - `python/openai-agent-artifacts`: アーティファクトを編集およびダウンロードできるエージェント。
+
+**Typescript**
 
 ```bash
 acontext create my-proj --template-path "typescript/openai-basic"
 ```
 
-**OpenAI Agent SDK + Acontext** (python)
+> Typescriptのその他の例：
+>
+> - `typescript/vercel-ai-basic`: @vercel/ai-sdkの自己学習エージェント
 
-```bash
-acontext create my-proj --template-path "python/openai-agent-basic"
-```
 
-**Agno + Acontext** (python)
-
-```bash
-acontext create my-proj --template-path "python/agno-basic"
-```
-
-**vercel/ai-sdk + Acontext** (typescript)
-
-```bash
-acontext create my-proj --template-path "typescript/vercel-ai-basic"
-```
 
 より多くのテンプレートについては、サンプルリポジトリを確認してください：[Acontext-Examples](https://github.com/memodb-io/Acontext-Examples)。
 

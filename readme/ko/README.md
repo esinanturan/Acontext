@@ -83,7 +83,7 @@ Acontext는 다음과 같은 컨텍스트 데이터 플랫폼입니다:
                   │         └────────┬────────┘
                   │                  │
                   │         ┌────────▼────────┐
-                  │         │  Space (learn)  │
+                  │         │  Space (learn)  │ # or wait for user confirmation
                   │         └────────┬────────┘
                   │                  │
                   └──────────────────┘
@@ -133,10 +133,13 @@ curl -fsSL https://install.acontext.io | sh
 컴퓨터에서 Acontext 백엔드를 시작하려면 [docker](https://www.docker.com/get-started/)가 설치되어 있고 OpenAI API 키가 있어야 합니다:
 
 ```bash
+mkdir acontext_server && cd acontext_server
 acontext docker up
 ```
 
 > [📖 로컬 설정](https://docs.acontext.io/local#start-acontext-server-locally) Acontext는 최소한 OpenAI API 키가 필요합니다. LLM 모델로 `gpt-5.1` 또는 `gpt-4.1`을 권장합니다
+
+`acontext docker up`은 Acontext용 `.env` 및 `config.yaml`을 생성/사용하고 데이터를 유지하기 위한 `db` 폴더를 생성합니다.
 
 
 
@@ -162,34 +165,29 @@ acontext docker up
 
 `acontext`로 엔드투엔드 스크립트 다운로드:
 
-**OpenAI SDK + Acontext** (python)
+**Python**
 
 ```bash
 acontext create my-proj --template-path "python/openai-basic"
 ```
-**OpenAI SDK + Acontext** (typescript)
+
+> Python의 더 많은 예제:
+>
+> - `python/openai-agent-basic`: openai agent sdk의 자기 학습 에이전트.
+> - `python/agno-basic`: agno framework의 자기 학습 에이전트.
+> - `python/openai-agent-artifacts`: 아티팩트를 편집하고 다운로드할 수 있는 에이전트.
+
+**Typescript**
 
 ```bash
 acontext create my-proj --template-path "typescript/openai-basic"
 ```
 
-**OpenAI Agent SDK + Acontext** (python)
+> Typescript의 더 많은 예제:
+>
+> - `typescript/vercel-ai-basic`: @vercel/ai-sdk의 자기 학습 에이전트
 
-```bash
-acontext create my-proj --template-path "python/openai-agent-basic"
-```
 
-**Agno + Acontext** (python)
-
-```bash
-acontext create my-proj --template-path "python/agno-basic"
-```
-
-**vercel/ai-sdk + Acontext** (typescript)
-
-```bash
-acontext create my-proj --template-path "typescript/vercel-ai-basic"
-```
 
 더 많은 템플릿은 예제 저장소를 확인하세요: [Acontext-Examples](https://github.com/memodb-io/Acontext-Examples).
 

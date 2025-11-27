@@ -83,7 +83,7 @@ Acontext 是一个上下文数据平台，它：
                   │         └────────┬────────┘
                   │                  │
                   │         ┌────────▼────────┐
-                  │         │  Space (learn)  │
+                  │         │  Space (learn)  │ # or wait for user confirmation
                   │         └────────┬────────┘
                   │                  │
                   └──────────────────┘
@@ -133,10 +133,13 @@ curl -fsSL https://install.acontext.io | sh
 您应该安装 [docker](https://www.docker.com/get-started/) 并拥有 OpenAI API 密钥，以便在计算机上启动 Acontext 后端：
 
 ```bash
+mkdir acontext_server && cd acontext_server
 acontext docker up
 ```
 
 > [📖 本地设置](https://docs.acontext.io/local#start-acontext-server-locally) Acontext 至少需要一个 OpenAI API 密钥。我们推荐使用 `gpt-5.1` 或 `gpt-4.1` 作为 LLM 模型
+
+`acontext docker up` 将为 Acontext 创建/使用 `.env` 和 `config.yaml`，并创建 `db` 文件夹来持久化数据。
 
 
 
@@ -162,34 +165,29 @@ acontext docker up
 
 使用 `acontext` 下载端到端脚本：
 
-**OpenAI SDK + Acontext** (python)
+**Python**
 
 ```bash
 acontext create my-proj --template-path "python/openai-basic"
 ```
-**OpenAI SDK + Acontext** (typescript)
+
+> Python 的更多示例：
+>
+> - `python/openai-agent-basic`: openai agent sdk 中的自学习代理。
+> - `python/agno-basic`: agno framework 中的自学习代理。
+> - `python/openai-agent-artifacts`: 可以编辑和下载工件的代理。
+
+**Typescript**
 
 ```bash
 acontext create my-proj --template-path "typescript/openai-basic"
 ```
 
-**OpenAI Agent SDK + Acontext** (python)
+> Typescript 的更多示例：
+>
+> - `typescript/vercel-ai-basic`: @vercel/ai-sdk 中的自学习代理
 
-```bash
-acontext create my-proj --template-path "python/openai-agent-basic"
-```
 
-**Agno + Acontext** (python)
-
-```bash
-acontext create my-proj --template-path "python/agno-basic"
-```
-
-**vercel/ai-sdk + Acontext** (typescript)
-
-```bash
-acontext create my-proj --template-path "typescript/vercel-ai-basic"
-```
 
 查看我们的示例仓库以获取更多模板：[Acontext-Examples](https://github.com/memodb-io/Acontext-Examples)。
 
