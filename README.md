@@ -91,12 +91,28 @@ so that your agent can be more stable and provide greater value to your users.
                   Skills guide the agent
 ```
 
-Your agent skills look like:
+For each session, Acontext will automatically track tasks like:
+
+```json
+{
+  "task_description": "Star https://github.com/memodb-io/Acontext",
+  "progresses": [
+    "I have navigated to Acontext repo",
+    "Tried to Star but a pop-up required me to login",
+    ...
+  ],
+  "user_preferences": [
+    "user wants to use outlook email to login"
+  ]
+}
+```
+
+The self-learned skill will look like this:
 
 ```json
 {
     "use_when": "star a repo on github.com",
-    "preferences": "use personal account. star but not fork",
+    "preferences": "use user's outlook account",
     "tool_sops": [
         {"tool_name": "goto", "action": "goto github.com"},
         {"tool_name": "click", "action": "find login button if any. login first"},
@@ -105,9 +121,7 @@ Your agent skills look like:
 }
 ```
 
-
-
-Agent experience will be stored in a structured `Space`, with folders, pages and blocks. For example:
+Agent Skills will be stored in a structured `Space`, with folders, pages and blocks. For example:
 
 ```txt
 /
