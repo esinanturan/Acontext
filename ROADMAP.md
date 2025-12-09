@@ -27,7 +27,7 @@ Algorithms
 - [x] Optimize task agent prompt to better reserve conditions of tasks 
   - [x] Task progress should contain more states(which website, database table, city...)
   - [x]  `use_when` should reserve the states
-- [ ] Experience agent on replace/update the existing experience.
+- [x] Experience agent on replace/update the existing experience.
 
 Text Matching
 
