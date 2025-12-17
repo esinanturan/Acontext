@@ -1,10 +1,8 @@
-> Related to Issue ()
 
-# Tasks
-Please ensure your pull request meets the following requirements:
-- [ ] PR Task 1
-- [ ] PR Task 2
-- [ ] ...
+
+# Why we need this PR?
+> This should close Issue ()
+...
 
 # Impact Areas
 Which part of Acontext would this feature affect?
@@ -15,7 +13,15 @@ Which part of Acontext would this feature affect?
 - [ ] Dashboard
 - [ ] CLI Tool
 - [ ] Documentation
-- [ ] Other: please_specify_here
+- [ ] Other: ...
+
+
+# Implementation Tasks
+Please ensure your pull request meets the following requirements:
+- [ ] PR Task 1
+- [ ] PR Task 2
+- [ ] ...
+
 
 # Checklist
 - [ ] Open your pull request against the `dev` branch.

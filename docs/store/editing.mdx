@@ -108,6 +108,28 @@ It will:
 - Removes messages from oldest to newest
 - Maintains tool-call/tool-result pairing (when removing a tool-call, its corresponding tool-result is also removed)
 
+**Example Output:**
+
+<CodeGroup>
+```json Before (5 messages, ~25,000 tokens)
+[
+  {"role": "user", "content": "What's the weather in NYC?"},
+  {"role": "assistant", "content": "...", "tool_calls": [...]},
+  {"role": "tool", "content": "Temperature: 72°F"},
+  {"role": "assistant", "content": "The weather in NYC is 72°F and sunny."},
+  {"role": "user", "content": "What about Boston?"}
+]
+```
+
+```json After (limit_tokens: 20000)
+[
+  {"role": "assistant", "content": "The weather in NYC is 72°F and sunny."},
+  {"role": "user", "content": "What about Boston?"}
+]
+```
+</CodeGroup>
+
+**Usage:**
 <CodeGroup>
 ```python Python
 # Limit session to 20,000 tokens
@@ -146,6 +168,35 @@ This strategy will replace the oldest tool results' content with a placeholder t
 - `keep_recent_n_tool_results` (optional, default: 3): Number of most recent tool results to keep with original content
 - `tool_result_placeholder` (optional, default: "Done"): Custom text to replace old tool results with
 
+**Example Output:**
+
+<CodeGroup>
+```json Before (3 tool results with full content)
+[
+  {"role": "user", "content": "Check weather in 5 cities"},
+  {"role": "assistant", "tool_calls": [{"id": "1", "name": "get_weather", "arguments": "{\"city\":\"NYC\"}"}]},
+  {"role": "tool", "tool_call_id": "1", "content": "Temperature: 72°F, Humidity: 65%, Wind: 10mph..."},
+  {"role": "assistant", "tool_calls": [{"id": "2", "name": "get_weather", "arguments": "{\"city\":\"LA\"}"}]},
+  {"role": "tool", "tool_call_id": "2", "content": "Temperature: 85°F, Humidity: 45%, Wind: 5mph..."},
+  {"role": "assistant", "tool_calls": [{"id": "3", "name": "get_weather", "arguments": "{\"city\":\"Chicago\"}"}]},
+  {"role": "tool", "tool_call_id": "3", "content": "Temperature: 68°F, Humidity: 70%, Wind: 15mph..."}
+]
+```
+
+```json After (keep_recent_n_tool_results: 1)
+[
+  {"role": "user", "content": "Check weather in 5 cities"},
+  {"role": "assistant", "tool_calls": [{"id": "1", "name": "get_weather", "arguments": "{\"city\":\"NYC\"}"}]},
+  {"role": "tool", "tool_call_id": "1", "content": "Done"},
+  {"role": "assistant", "tool_calls": [{"id": "2", "name": "get_weather", "arguments": "{\"city\":\"LA\"}"}]},
+  {"role": "tool", "tool_call_id": "2", "content": "Done"},
+  {"role": "assistant", "tool_calls": [{"id": "3", "name": "get_weather", "arguments": "{\"city\":\"Chicago\"}"}]},
+  {"role": "tool", "tool_call_id": "3", "content": "Temperature: 68°F, Humidity: 70%, Wind: 15mph..."}
+]
+```
+</CodeGroup>
+
+**Usage:**
 <CodeGroup>
 ```python Python
 # With explicit parameters
@@ -188,6 +239,105 @@ const editedSession = await client.sessions.getMessages('session-uuid', {
 const editedSession = await client.sessions.getMessages('session-uuid', {
   editStrategies: [
     { type: 'remove_tool_result' as const }
+  ],
+});
+```
+</CodeGroup>
+
+### Remove Tool Call Params
+This strategy removes parameters from old tool-call parts to reduce the session context, while keeping the most recent N tool calls with their full parameters intact.
+
+This is particularly useful when you have many tool calls in your session history and want to reduce token usage by removing the detailed arguments from older tool calls, while still maintaining the tool call structure (ID and name) so that tool-results can still reference them.
+
+**Parameters:**
+- `keep_recent_n_tool_calls` (optional, default: 3): Number of most recent tool calls to keep with full parameters
+
+**How it works:**
+- Keeps the most recent N tool calls with their original parameters
+- Replaces older tool call arguments with empty JSON `{}`
+- Tool call ID and name remain intact so tool-results can still reference them
+
+**Example Output:**
+
+<CodeGroup>
+```json Before (3 tool calls with full arguments)
+[
+  {"role": "user", "content": "Analyze sales data for all regions"},
+  {"role": "assistant", "tool_calls": [
+    {"id": "call_1", "name": "query_database", "arguments": "{\"query\":\"SELECT * FROM sales WHERE region='North' AND date > '2024-01-01'\",\"limit\":1000}"}
+  ]},
+  {"role": "tool", "tool_call_id": "call_1", "content": "Results: 1500 rows..."},
+  {"role": "assistant", "tool_calls": [
+    {"id": "call_2", "name": "query_database", "arguments": "{\"query\":\"SELECT * FROM sales WHERE region='South' AND date > '2024-01-01'\",\"limit\":1000}"}
+  ]},
+  {"role": "tool", "tool_call_id": "call_2", "content": "Results: 1200 rows..."},
+  {"role": "assistant", "tool_calls": [
+    {"id": "call_3", "name": "calculate_metrics", "arguments": "{\"data\":[...],\"metrics\":[\"average\",\"total\",\"growth\"]}"}
+  ]},
+  {"role": "tool", "tool_call_id": "call_3", "content": "Average: $5000, Total: $2.5M..."}
+]
+```
+
+```json After (keep_recent_n_tool_calls: 1)
+[
+  {"role": "user", "content": "Analyze sales data for all regions"},
+  {"role": "assistant", "tool_calls": [
+    {"id": "call_1", "name": "query_database", "arguments": "{}"}
+  ]},
+  {"role": "tool", "tool_call_id": "call_1", "content": "Results: 1500 rows..."},
+  {"role": "assistant", "tool_calls": [
+    {"id": "call_2", "name": "query_database", "arguments": "{}"}
+  ]},
+  {"role": "tool", "tool_call_id": "call_2", "content": "Results: 1200 rows..."},
+  {"role": "assistant", "tool_calls": [
+    {"id": "call_3", "name": "calculate_metrics", "arguments": "{\"data\":[...],\"metrics\":[\"average\",\"total\",\"growth\"]}"}
+  ]},
+  {"role": "tool", "tool_call_id": "call_3", "content": "Average: $5000, Total: $2.5M..."}
+]
+```
+</CodeGroup>
+
+**Usage:**
+<CodeGroup>
+```python Python
+# With explicit parameters
+edited_session = client.sessions.get_messages(
+  session_id="session-uuid",
+  edit_strategies=[
+    {
+      "type": "remove_tool_call_params",
+      "params": {
+        "keep_recent_n_tool_calls": 5
+      }
+    }
+  ],
+)
+
+# Using defaults (keeps 3 most recent tool calls)
+edited_session = client.sessions.get_messages(
+  session_id="session-uuid",
+  edit_strategies=[
+    {"type": "remove_tool_call_params"}
+  ],
+)
+```
+```typescript TypeScript
+// With explicit parameters
+const editedSession = await client.sessions.getMessages('session-uuid', {
+  editStrategies: [
+    {
+      type: 'remove_tool_call_params' as const,
+      params: {
+        keep_recent_n_tool_calls: 5
+      }
+    }
+  ],
+});
+
+// Using defaults (keeps 3 most recent tool calls)
+const editedSession = await client.sessions.getMessages('session-uuid', {
+  editStrategies: [
+    { type: 'remove_tool_call_params' as const }
   ],
 });
 ```
