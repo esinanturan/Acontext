@@ -2,7 +2,16 @@
 
 # Why we need this PR?
 > This should close Issue ()
+
+# Describe your solution
 ...
+
+# Implementation Tasks
+Please ensure your pull request meets the following requirements:
+- [ ] PR Task 1
+- [ ] PR Task 2
+- [ ] ...
+
 
 # Impact Areas
 Which part of Acontext would this feature affect?
@@ -14,13 +23,6 @@ Which part of Acontext would this feature affect?
 - [ ] CLI Tool
 - [ ] Documentation
 - [ ] Other: ...
-
-
-# Implementation Tasks
-Please ensure your pull request meets the following requirements:
-- [ ] PR Task 1
-- [ ] PR Task 2
-- [ ] ...
 
 
 # Checklist
