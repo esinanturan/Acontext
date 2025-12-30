@@ -18,7 +18,8 @@
             "icon": "rocket",
             "pages": [
               "index",
-              "local"
+              "local",
+              "sdk"
             ]
           },
           {
