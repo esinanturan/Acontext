@@ -7,12 +7,13 @@ Acontext provides pre-built filesystem tools that allow LLMs to read, write, and
 
 ## Available Tools
 
-The SDK includes four disk operation tools:
+The SDK includes five disk operation tools:
 
 - **`write_file`** - Create or overwrite text files
 - **`read_file`** - Read file contents with optional line offset and limit
 - **`replace_string`** - Find and replace text in files  
 - **`list_artifacts`** - List files and directories in a path
+- **`download_file`** - Get a public URL to download a file
 
 <Tip>
 These tools handle path normalization automatically and support nested directory structures like `/notes/`, `/documents/2024/`, etc.
@@ -52,7 +53,7 @@ print(tools)
 messages = [
     {
         "role": "user",
-        "content": "Create a todo.md file with 3 tasks. Then check the content in this file",
+        "content": "Create a todo.md file with 3 tasks. Then give me the public download URL",
     }
 ]
 
@@ -299,6 +300,17 @@ List all files and directories at a specified path.
 - `file_path` (required) - Directory path to list, e.g., `"/notes/"` or `"/"`
 
 **Returns:** List of files and directories
+
+### download_file
+
+Get a public presigned URL to download a file.
+
+**Parameters:**
+- `filename` (required) - Name of the file to get the download URL for
+- `file_path` (optional) - Directory path where the file is located (defaults to `"/"`)
+- `expire` (optional) - URL expiration time in seconds (defaults to `3600`)
+
+**Returns:** Presigned public URL for downloading the file
 
 <Warning>
 All file operations are scoped to the specific disk. Ensure you create and configure the disk context correctly before executing tools.
