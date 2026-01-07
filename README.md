@@ -31,33 +31,33 @@
 </div>
 
 
->  Everyone is telling you how to use their agents.
+> Everyone is telling you how to use their agents.
+> 
+> But what if YOU need to build an agent for 100,000 users, how would you start?
+
+**📦 Problem 1: 99% of your DB is just LLM messages.** 
+
+> Poor schema design makes your most valuable data expensive and slow. Acontext handles context storage and retrieval via PG, Redis, and S3. 
 >
->  But imagine YOU need to build an agent for 100,000 users, how would you start?
+> ChatGPT, Gemini, Anthropic, images, audio, files... we've got you covered.
 
-**📦 Problem 1: 99% of the data stored in your DB are LLM messages**. 
+**⏰ Problem 2: Long-running agents are a nightmare.** 
 
-> If you don't design the schema well, it will lead to your most important data being expensive and slow. Acontext supports context storage and retrieval with two APIs with PG, Redis and S3. 
+> You know context engineering, but you're always writing it from scratch. Acontext comes with built-in context editing methods and a todo agent out of the box.
 >
-> ChatGPT, Gemini, Anthropic, Image, Audio, File... You got it.
+> Managing agent state? Piece of cake.
 
-**⏰ Problem 2: long-running problem of the agent**. 
+**👀 Problem 3: You can't see how your agent is doing.** 
 
-> You know how to do context engineering, but you always have to start writing from scratch. Acontext has built-in methods for editing context and a built-in todo agent.
+> How satisfied are your users, really? Acontext tracks tasks per session and shows you your agent's actual success rate. 
 >
-> Maintain the agent state? Piece of cake.
+> Stop obsessing over token costs, find your PMF.
 
-**👀 Problem 3: observing the agent's performance**. 
+**🧠 Problem 4: Your agent is hit or miss.**
 
-> Do you know how satisfied your users with your agent? Acontext will count the agent tasks in each session and tell you what your agent's success rate is. 
+> Can it learn from its wins? Acontext's experience agent remembers successful runs and turns them into reusable tool-use SOPs.
 >
-> Don't just focus on token costs, look for PMF.
-
-**🧠 Problem 4: agent sometimes succeeds and sometimes fails.**
-
-> Can your agent recall previous successful runs? Acontext has a built-in experience agent to learn from the positive sessions and form into tool-use SOPs.
->
-> The success of your agent is everything.
+> Consistency is everything.
 
 
 
