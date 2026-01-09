@@ -2507,6 +2507,10 @@ func TestSessionHandler_StoreMessage_InvalidJSON(t *testing.T) {
 
 // TestOpenAI_ToolCalls_FieldPreservation 测试OpenAI tool_calls字段是否在往返过程中保留
 func TestOpenAI_ToolCalls_FieldPreservation(t *testing.T) {
+	// Initialize tokenizer for testing (required by GetMessages handler)
+	testLogger, _ := zap.NewDevelopment()
+	_ = tokenizer.Init(testLogger)
+
 	projectID := uuid.New()
 	sessionID := uuid.New()
 
@@ -2662,6 +2666,10 @@ func TestOpenAI_ToolCalls_FieldPreservation(t *testing.T) {
 
 // TestOpenAIToAnthropic_FieldMapping 测试 OpenAI → Anthropic 转换时的字段映射
 func TestOpenAIToAnthropic_FieldMapping(t *testing.T) {
+	// Initialize tokenizer for testing (required by GetMessages handler)
+	testLogger, _ := zap.NewDevelopment()
+	_ = tokenizer.Init(testLogger)
+
 	projectID := uuid.New()
 	sessionID := uuid.New()
 
@@ -2786,6 +2794,10 @@ func TestOpenAIToAnthropic_FieldMapping(t *testing.T) {
 
 // TestAnthropicToOpenAI_FieldMapping 测试 Anthropic → OpenAI 转换时的字段映射
 func TestAnthropicToOpenAI_FieldMapping(t *testing.T) {
+	// Initialize tokenizer for testing (required by GetMessages handler)
+	testLogger, _ := zap.NewDevelopment()
+	_ = tokenizer.Init(testLogger)
+
 	projectID := uuid.New()
 	sessionID := uuid.New()
 
@@ -2898,6 +2910,10 @@ func TestAnthropicToOpenAI_FieldMapping(t *testing.T) {
 
 // TestToolResult_OpenAIToAnthropic 测试 OpenAI tool message → Anthropic tool_result 转换
 func TestToolResult_OpenAIToAnthropic(t *testing.T) {
+	// Initialize tokenizer for testing (required by GetMessages handler)
+	testLogger, _ := zap.NewDevelopment()
+	_ = tokenizer.Init(testLogger)
+
 	projectID := uuid.New()
 	sessionID := uuid.New()
 
@@ -3010,6 +3026,10 @@ func TestToolResult_OpenAIToAnthropic(t *testing.T) {
 
 // TestToolResult_AnthropicToOpenAI 测试 Anthropic tool_result → OpenAI tool message 转换
 func TestToolResult_AnthropicToOpenAI(t *testing.T) {
+	// Initialize tokenizer for testing (required by GetMessages handler)
+	testLogger, _ := zap.NewDevelopment()
+	_ = tokenizer.Init(testLogger)
+
 	projectID := uuid.New()
 	sessionID := uuid.New()
 
@@ -3102,6 +3122,10 @@ func TestToolResult_AnthropicToOpenAI(t *testing.T) {
 
 // TestAnthropic_CacheControl_Preservation 测试 Anthropic cache_control 保留
 func TestAnthropic_CacheControl_Preservation(t *testing.T) {
+	// Initialize tokenizer for testing (required by GetMessages handler)
+	testLogger, _ := zap.NewDevelopment()
+	_ = tokenizer.Init(testLogger)
+
 	projectID := uuid.New()
 	sessionID := uuid.New()
 
@@ -3220,6 +3244,10 @@ func TestAnthropic_CacheControl_Preservation(t *testing.T) {
 
 // TestMultipleToolCalls_Conversion 测试多个 tool_calls 的转换
 func TestMultipleToolCalls_Conversion(t *testing.T) {
+	// Initialize tokenizer for testing (required by GetMessages handler)
+	testLogger, _ := zap.NewDevelopment()
+	_ = tokenizer.Init(testLogger)
+
 	projectID := uuid.New()
 	sessionID := uuid.New()
 
