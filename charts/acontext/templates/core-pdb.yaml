@@ -1,0 +1,23 @@
+{{- if and .Values.core.enabled .Values.core.podDisruptionBudget.enabled }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "aconext.core.name" . }}
+  labels:
+    {{- include "aconext.labels" . | nindent 4 }}
+    app.kubernetes.io/component: core
+spec:
+  selector:
+    matchLabels:
+      {{- include "aconext.core.selectorLabels" . | nindent 6 }}
+  {{- if .Values.core.podDisruptionBudget.minAvailable }}
+  minAvailable: {{ .Values.core.podDisruptionBudget.minAvailable }}
+  {{- end }}
+  {{- if .Values.core.podDisruptionBudget.maxUnavailable }}
+  maxUnavailable: {{ .Values.core.podDisruptionBudget.maxUnavailable }}
+  {{- end }}
+  {{- if .Values.core.podDisruptionBudget.unhealthyPodEvictionPolicy }}
+  unhealthyPodEvictionPolicy: {{ .Values.core.podDisruptionBudget.unhealthyPodEvictionPolicy }}
+  {{- end }}
+{{- end }}
+
