@@ -180,6 +180,47 @@ class SessionsAPI:
         )
         return GetTasksOutput.model_validate(data)
 
+    def get_session_summary(
+        self,
+        session_id: str,
+        *,
+        limit: int | None = None,
+    ) -> str:
+        """Get a summary of all tasks in a session as a formatted string.
+
+        Args:
+            session_id: The UUID of the session.
+            limit: Maximum number of tasks to include in the summary. Defaults to None (all tasks).
+
+        Returns:
+            A formatted string containing the session summary with all task information.
+        """
+        tasks_output = self.get_tasks(session_id, limit=limit, time_desc=False)
+        tasks = tasks_output.items
+
+        if not tasks:
+            return ""
+
+        parts: list[str] = []
+        for task in tasks:
+            task_lines = [
+                f'<task id="{task.order}" description="{task.data.task_description}">'
+            ]
+            if task.data.progresses:
+                task_lines.append("<progress>")
+                for i, p in enumerate(task.data.progresses, 1):
+                    task_lines.append(f"{i}. {p}")
+                task_lines.append("</progress>")
+            if task.data.user_preferences:
+                task_lines.append("<user_preference>")
+                for i, pref in enumerate(task.data.user_preferences, 1):
+                    task_lines.append(f"{i}. {pref}")
+                task_lines.append("</user_preference>")
+            task_lines.append("</task>")
+            parts.append("\n".join(task_lines))
+
+        return "\n".join(parts)
+
     def store_message(
         self,
         session_id: str,
@@ -321,7 +362,9 @@ class SessionsAPI:
         if edit_strategies is not None:
             params["edit_strategies"] = json.dumps(edit_strategies)
         if pin_editing_strategies_at_message is not None:
-            params["pin_editing_strategies_at_message"] = pin_editing_strategies_at_message
+            params["pin_editing_strategies_at_message"] = (
+                pin_editing_strategies_at_message
+            )
         data = self._requester.request(
             "GET", f"/session/{session_id}/messages", params=params or None
         )
@@ -367,20 +410,19 @@ class SessionsAPI:
         """
         data = self._requester.request("GET", f"/session/{session_id}/token_counts")
         return TokenCounts.model_validate(data)
+
     def messages_observing_status(self, session_id: str) -> MessageObservingStatus:
         """Get message observing status counts for a session.
-        
+
         Returns the count of messages by their observing status:
         observed, in_process, and pending.
-        
+
         Args:
             session_id: The UUID of the session.
-        
+
         Returns:
-            MessageObservingStatus object containing observed, in_process, 
+            MessageObservingStatus object containing observed, in_process,
             pending counts and updated_at timestamp.
         """
-        data = self._requester.request(
-            "GET", f"/session/{session_id}/observing_status"
-        )
+        data = self._requester.request("GET", f"/session/{session_id}/observing_status")
         return MessageObservingStatus.model_validate(data)

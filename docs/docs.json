@@ -48,6 +48,7 @@
             "icon": "scissors",
             "pages": [
               "engineering/whatis",
+              "engineering/session_summary",
               "engineering/editing",
               "engineering/cache"
             ]

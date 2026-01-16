@@ -180,6 +180,47 @@ class AsyncSessionsAPI:
         )
         return GetTasksOutput.model_validate(data)
 
+    async def get_session_summary(
+        self,
+        session_id: str,
+        *,
+        limit: int | None = None,
+    ) -> str:
+        """Get a summary of all tasks in a session as a formatted string.
+
+        Args:
+            session_id: The UUID of the session.
+            limit: Maximum number of tasks to include in the summary. Defaults to None (all tasks).
+
+        Returns:
+            A formatted string containing the session summary with all task information.
+        """
+        tasks_output = await self.get_tasks(session_id, limit=limit, time_desc=False)
+        tasks = tasks_output.items
+
+        if not tasks:
+            return ""
+
+        parts: list[str] = []
+        for task in tasks:
+            task_lines = [
+                f'<task id="{task.order}" description="{task.data.task_description}">'
+            ]
+            if task.data.progresses:
+                task_lines.append("<progress>")
+                for i, p in enumerate(task.data.progresses, 1):
+                    task_lines.append(f"{i}. {p}")
+                task_lines.append("</progress>")
+            if task.data.user_preferences:
+                task_lines.append("<user_preference>")
+                for i, pref in enumerate(task.data.user_preferences, 1):
+                    task_lines.append(f"{i}. {pref}")
+                task_lines.append("</user_preference>")
+            task_lines.append("</task>")
+            parts.append("\n".join(task_lines))
+
+        return "\n".join(parts)
+
     async def store_message(
         self,
         session_id: str,

@@ -18,7 +18,7 @@ import {
   ListSessionsOutputSchema,
   Message,
   MessageObservingStatus,
-  MessageObservingStatusSchema, 
+  MessageObservingStatusSchema,
   MessageSchema,
   Session,
   SessionSchema,
@@ -136,6 +136,56 @@ export class SessionsAPI {
       params: Object.keys(params).length > 0 ? params : undefined,
     });
     return GetTasksOutputSchema.parse(data);
+  }
+
+  /**
+   * Get a summary of all tasks in a session as a formatted string.
+   *
+   * @param sessionId - The UUID of the session.
+   * @param options - Options for retrieving the summary.
+   * @param options.limit - Maximum number of tasks to include in the summary.
+   * @returns A formatted string containing the session summary with all task information.
+   */
+  async getSessionSummary(
+    sessionId: string,
+    options?: {
+      limit?: number | null;
+    }
+  ): Promise<string> {
+    const tasksOutput = await this.getTasks(sessionId, {
+      limit: options?.limit,
+      timeDesc: false,
+    });
+    const tasks = tasksOutput.items;
+
+    if (tasks.length === 0) {
+      return '';
+    }
+
+    const parts: string[] = [];
+    for (const task of tasks) {
+      const taskLines: string[] = [
+        `<task id="${task.order}" description="${task.data.task_description}">`
+      ];
+      if (task.data.progresses && task.data.progresses.length > 0) {
+        taskLines.push('<progress>');
+        task.data.progresses.forEach((p, i) => {
+          taskLines.push(`${i + 1}. ${p}`);
+        });
+        taskLines.push('</progress>');
+      }
+      if (task.data.user_preferences && task.data.user_preferences.length > 0) {
+        taskLines.push('<user_preference>');
+        task.data.user_preferences.forEach((pref, i) => {
+          taskLines.push(`${i + 1}. ${pref}`);
+        });
+        taskLines.push('</user_preference>');
+      }
+      taskLines.push('</task>');
+      parts.push(taskLines.join('\n'));
+    }
+
+    return parts.join('\n');
   }
 
   async storeMessage(
