@@ -51,7 +51,7 @@ async def _get_backend_sandbox_id(
     result = await db_session.execute(stmt)
     backend_id = result.scalar_one_or_none()
     if backend_id is None:
-        return Result.reject(f"Sandbox {sandbox_id} not found")
+        return Result.reject(f"Sandbox {sandbox_id} not found or was killed.")
     return Result.resolve(backend_id)
 
 
@@ -124,7 +124,18 @@ async def kill_sandbox(db_session: AsyncSession, sandbox_id: asUUID) -> Result[b
         backend = SANDBOX_CLIENT.use_backend()
         success = await backend.kill_sandbox(backend_sandbox_id)
 
+        # Set backend_sandbox_id to None to indicate the sandbox is killed
+        stmt = (
+            update(SandboxLog)
+            .where(SandboxLog.id == sandbox_id)
+            .values(backend_sandbox_id=None)
+        )
+        await db_session.execute(stmt)
+
         LOG.info(f"Killed sandbox {sandbox_id} (backend: {backend_sandbox_id})")
+        await _update_will_total_alive_seconds(
+            db_session, sandbox_id, reset_alive_seconds=0
+        )
         return Result.resolve(success)
     except ValueError as e:
         return Result.reject(f"Sandbox backend not available: {e}")
@@ -295,9 +306,7 @@ async def download_file(
         if success:
             # Append to generated_files using PostgreSQL JSONB || operator
             # Use COALESCE to handle NULL values
-            new_entry = [
-                {"sandbox_path": from_sandbox_file, "s3_path": download_to_s3_key}
-            ]
+            new_entry = [{"sandbox_path": from_sandbox_file}]
             stmt = (
                 update(SandboxLog)
                 .where(SandboxLog.id == sandbox_id)

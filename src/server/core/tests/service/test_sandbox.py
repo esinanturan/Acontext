@@ -296,9 +296,7 @@ class TestDownloadFileLogging:
             files = sandbox_log.data.generated_files
             assert len(files) == 2
             assert files[0]["sandbox_path"] == "/app/output.txt"
-            assert files[0]["s3_path"] == "project/outputs/output.txt"
             assert files[1]["sandbox_path"] == "/app/report.pdf"
-            assert files[1]["s3_path"] == "project/reports/report.pdf"
 
             # Clean up
             await session.delete(project)
@@ -361,6 +359,12 @@ class TestKillSandbox:
             kill_result = await SB.kill_sandbox(session, unified_id)
             assert kill_result.ok()
             assert kill_result.data is True
+
+            # Verify backend_sandbox_id is set to None after kill
+            await session.commit()
+            sandbox_log = await session.get(SandboxLog, unified_id)
+            assert sandbox_log is not None
+            assert sandbox_log.backend_sandbox_id is None
 
             # Clean up
             await session.delete(project)

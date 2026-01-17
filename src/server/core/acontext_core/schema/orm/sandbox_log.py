@@ -26,7 +26,9 @@ class SandboxLog(CommonMixin):
             )
         }
     )
-    backend_sandbox_id: str = field(metadata={"db": Column(String, nullable=False)})
+    backend_sandbox_id: str | None = field(
+        metadata={"db": Column(String, nullable=True)}
+    )
     backend_type: str = field(metadata={"db": Column(String, nullable=False)})
 
     history_commands: dict = field(metadata={"db": Column(JSONB, nullable=False)})
