@@ -40,7 +40,16 @@
                 ]
               },
               "store/disk",
-              "store/skill"
+              "store/skill",
+              "store/sandbox"
+            ]
+          },
+          {
+            "group": "Agent Tools",
+            "icon": "wand-magic-sparkles",
+            "pages": [
+              "tool/disk_tools",
+              "tool/skill_tools"
             ]
           },
           {
@@ -51,14 +60,6 @@
               "engineering/session_summary",
               "engineering/editing",
               "engineering/cache"
-            ]
-          },
-          {
-            "group": "Agent Tools",
-            "icon": "wand-magic-sparkles",
-            "pages": [
-              "sdk/disk_tools",
-              "sdk/skill_tools"
             ]
           },
           {
@@ -83,9 +84,10 @@
             ]
           },
           {
-            "group": "Agent Self-learning",
+            "group": "Self-learning(beta)",
             "icon": "sparkles",
             "pages": [
+              "learn/warning",
               "learn/skill-space",
               "learn/search-skills",
               {
