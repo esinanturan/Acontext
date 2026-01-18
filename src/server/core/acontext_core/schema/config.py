@@ -175,5 +175,5 @@ def post_validate_core_config_sanity(config: CoreConfig) -> None:
         ), "cloudflare_worker_url is required when sandbox_type is cloudflare"
     if config.sandbox_type == "aws_agentcore":
         assert (
-            config.aws_region is not None
-        ), "aws_region is required when sandbox_type is aws_agentcore"
+            config.aws_agentcore_region is not None
+        ), "aws_agentcore_region is required when sandbox_type is aws_agentcore"

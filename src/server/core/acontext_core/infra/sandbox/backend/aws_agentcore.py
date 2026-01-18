@@ -69,7 +69,7 @@ class AWSAgentCoreSandboxBackend(SandboxBackend):
         response = self.__client.start_code_interpreter_session(
             codeInterpreterIdentifier=self._DEFAULT_CODE_INTERPRETER_IDENTIFIER,
             name=f"code-session-{uuid.uuid4().hex[:8]}",
-            sessionTimeoutSeconds=create_config.keepalive_seconds,
+            sessionTimeoutSeconds=DEFAULT_CORE_CONFIG.sandbox_default_keepalive_seconds,
         )
 
         session_id = response.get("sessionId")
@@ -80,7 +80,7 @@ class AWSAgentCoreSandboxBackend(SandboxBackend):
         if not isinstance(created_at, datetime):
             raise ValueError("Failed to get createdAt from start_code_interpreter_session response")
 
-        expires_at = created_at + timedelta(seconds=create_config.keepalive_seconds)
+        expires_at = created_at + timedelta(seconds=DEFAULT_CORE_CONFIG.sandbox_default_keepalive_seconds)
 
         logger.info(f"Started AWS AgentCore session: {session_id}")
 
