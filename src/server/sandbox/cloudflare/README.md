@@ -1,5 +1,7 @@
 # Cloudflare Sandbox Worker API
 
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/memodb-io/Acontext/tree/main/src/server/sandbox/cloudflare)
+
 HTTP API proxy for Cloudflare Sandbox SDK, enabling Python Core to interact with Cloudflare Sandbox via REST endpoints.
 
 ## Overview
@@ -243,13 +245,13 @@ The `wrangler.jsonc` file is already configured with:
 - Container binding to `Sandbox` Durable Object
 - Dockerfile path (`./Dockerfile`)
 - Instance type (`lite`)
-- Max instances (`1`)
+- Max instances (`100`)
 
 ### Dockerfile
 
-The `Dockerfile` is based on `docker.io/cloudflare/sandbox:0.3.3`.
+The `Dockerfile` is based on `docker.io/cloudflare/sandbox:0.7.0-python`.
 
-**Version Matching**: Ensure `package.json` has `@cloudflare/sandbox@^0.3.3` to match the Dockerfile version.
+**Version Matching**: Ensure `package.json` has `@cloudflare/sandbox@^0.7.0` to match the Dockerfile version.
 
 ## Integration with Python Core
 
