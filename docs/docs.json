@@ -57,6 +57,7 @@
             "icon": "scissors",
             "pages": [
               "engineering/whatis",
+              "engineering/agent_skills",
               "engineering/session_summary",
               "engineering/editing",
               "engineering/cache"

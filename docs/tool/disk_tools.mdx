@@ -1,9 +1,13 @@
 ---
-title: "Filesystem Tools"
+title: "Disk Tools"
 description: "Enable LLMs to autonomously manage files on Acontext disks using function calling"
 ---
 
 Acontext provides pre-built filesystem tools that allow LLMs to read, write, and manage files on disks through function calling. You can integrate these tools with OpenAI or Anthropic APIs to create agents that persist data autonomously.
+
+<Tip>
+Consider Acontext Disk as the google drive for your agent.
+</Tip>
 
 ## Available Tools
 
@@ -50,9 +54,16 @@ ctx = DISK_TOOLS.format_context(acontext_client, disk.id)
 
 # Get tool schemas for OpenAI
 tools = DISK_TOOLS.to_openai_tool_schema()
-print(tools)
+
+# Get context prompt to include in system message
+context_prompt = ctx.get_context_prompt()
+
 # Simple agentic loop
 messages = [
+    {
+        "role": "system",
+        "content": f"You are a helpful assistant with disk access.\n\n{context_prompt}",
+    },
     {
         "role": "user",
         "content": "Create a todo.md file with 3 tasks. Then give me the public download URL",
@@ -109,9 +120,16 @@ const ctx = DISK_TOOLS.formatContext(acontextClient, disk.id);
 
 // Get tool schemas for OpenAI
 const tools = DISK_TOOLS.toOpenAIToolSchema();
-console.log(tools);
+
+// Get context prompt to include in system message
+const contextPrompt = ctx.getContextPrompt();
+
 // Simple agentic loop
 const messages = [
+  {
+    role: 'system',
+    content: `You are a helpful assistant with disk access.\n\n${contextPrompt}`,
+  },
   {
     role: 'user',
     content: 'Create a todo.md file with 3 tasks. Then check the content in this file',
@@ -185,6 +203,42 @@ The agent will automatically call the appropriate tools (`write_file_disk`, `rea
   const ctx = DISK_TOOLS.formatContext(client, disk.id);
   ```
   </CodeGroup>
+</Step>
+
+<Step title="Include context prompt in system message">
+  The context provides guidelines for using each tool. Include it in your system prompt.
+
+  <CodeGroup>
+  ```python Python
+  # Get context prompt with tool usage guidelines
+  context_prompt = ctx.get_context_prompt()
+
+  messages = [
+      {
+          "role": "system",
+          "content": f"You are a helpful assistant with disk access.\n\n{context_prompt}",
+      },
+      # ... user messages
+  ]
+  ```
+
+  ```typescript TypeScript
+  // Get context prompt with tool usage guidelines
+  const contextPrompt = ctx.getContextPrompt();
+
+  const messages = [
+      {
+          role: 'system',
+          content: `You are a helpful assistant with disk access.\n\n${contextPrompt}`,
+      },
+      // ... user messages
+  ];
+  ```
+  </CodeGroup>
+
+  <Tip>
+  The context prompt includes guidelines for file operations such as path formatting, read/write operations, and search capabilities.
+  </Tip>
 </Step>
 
 <Step title="Pass tools to LLM">
