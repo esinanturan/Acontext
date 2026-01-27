@@ -2,6 +2,7 @@
  * Text editor file operations for sandbox environments.
  */
 
+import path from 'path';
 import type { SandboxContext } from './sandbox';
 
 const MAX_CONTENT_CHARS = 20000;
@@ -42,11 +43,7 @@ export interface CreateFileResult {
 }
 
 export interface StrReplaceResult {
-  oldStart?: number;
-  oldLines?: number;
-  newStart?: number;
-  newLines?: number;
-  lines?: string[];
+  msg?: string;
   error?: string;
   stderr?: string;
 }
@@ -56,43 +53,28 @@ export interface StrReplaceResult {
  */
 export async function viewFile(
   ctx: SandboxContext,
-  path: string,
+  filePath: string,
   viewRange: number[] | null,
   timeout?: number
 ): Promise<ViewFileResult> {
-  // First check if file exists and get total lines
-  const checkCmd = `wc -l < ${escapeForShell(path)} 2>/dev/null || echo 'FILE_NOT_FOUND'`;
-  const checkResult = await ctx.client.sandboxes.execCommand({
-    sandboxId: ctx.sandboxId,
-    command: checkCmd,
-    timeout,
-  });
+  const escapedPath = escapeForShell(filePath);
 
-  if (checkResult.stdout.includes('FILE_NOT_FOUND') || checkResult.exit_code !== 0) {
-    return {
-      error: `File not found: ${path}`,
-      stderr: checkResult.stderr,
-    };
-  }
-
-  const totalLines = /^\d+$/.test(checkResult.stdout.trim())
-    ? parseInt(checkResult.stdout.trim(), 10)
-    : 0;
-
-  // Build the view command with line numbers
-  let cmd: string;
+  // Build combined command: check existence, get total lines, and view content in one exec
+  let viewCmd: string;
   let startLine: number;
 
   if (viewRange && viewRange.length === 2) {
     const [rangeStart, rangeEnd] = viewRange;
-    cmd = `sed -n '${rangeStart},${rangeEnd}p' ${escapeForShell(path)} | nl -ba -v ${rangeStart}`;
+    viewCmd = `sed -n '${rangeStart},${rangeEnd}p' ${escapedPath} | nl -ba -v ${rangeStart}`;
     startLine = rangeStart;
   } else {
-    // Default to first 200 lines if no range specified
     const maxLines = 200;
-    cmd = `head -n ${maxLines} ${escapeForShell(path)} | nl -ba`;
+    viewCmd = `head -n ${maxLines} ${escapedPath} | nl -ba`;
     startLine = 1;
   }
+
+  // Single combined command: outputs "TOTAL:<n>" on first line, then file content
+  const cmd = `if [ ! -f ${escapedPath} ]; then echo 'FILE_NOT_FOUND'; exit 1; fi; echo "TOTAL:$(wc -l < ${escapedPath})"; ${viewCmd}`;
 
   const result = await ctx.client.sandboxes.execCommand({
     sandboxId: ctx.sandboxId,
@@ -100,22 +82,30 @@ export async function viewFile(
     timeout,
   });
 
-  if (result.exit_code !== 0) {
+  if (result.exit_code !== 0 || result.stdout.includes('FILE_NOT_FOUND')) {
     return {
-      error: `Failed to view file: ${path}`,
+      error: `File not found: ${filePath}`,
       stderr: result.stderr,
     };
   }
 
-  // Count lines in output
-  const contentLines = result.stdout.trim()
-    ? result.stdout.trimEnd().split('\n')
-    : [];
+  // Parse output: first line is "TOTAL:<n>", rest is content
+  const lines = result.stdout.split('\n');
+  let totalLines = 0;
+  let content = '';
+
+  if (lines.length > 0 && lines[0].startsWith('TOTAL:')) {
+    const totalStr = lines[0].substring(6).trim();
+    totalLines = /^\d+$/.test(totalStr) ? parseInt(totalStr, 10) : 0;
+    content = lines.slice(1).join('\n');
+  }
+
+  const contentLines = content.trim() ? content.trimEnd().split('\n') : [];
   const numLines = contentLines.length;
 
   return {
     file_type: 'text',
-    content: truncateContent(result.stdout),
+    content: truncateContent(content),
     numLines,
     startLine: viewRange ? startLine : 1,
     totalLines: totalLines + 1, // wc -l doesn't count last line without newline
@@ -127,157 +117,107 @@ export async function viewFile(
  */
 export async function createFile(
   ctx: SandboxContext,
-  path: string,
+  filePath: string,
   fileText: string,
   timeout?: number
 ): Promise<CreateFileResult> {
-  // Check if file already exists
-  const checkCmd = `test -f ${escapeForShell(path)} && echo 'EXISTS' || echo 'NEW'`;
-  const checkResult = await ctx.client.sandboxes.execCommand({
-    sandboxId: ctx.sandboxId,
-    command: checkCmd,
-    timeout,
-  });
-  const isUpdate = checkResult.stdout.includes('EXISTS');
-
-  // Create directory if needed
-  const parts = path.split('/');
-  parts.pop();
-  const dirPath = parts.join('/');
-  if (dirPath) {
-    const mkdirCmd = `mkdir -p ${escapeForShell(dirPath)}`;
-    await ctx.client.sandboxes.execCommand({
-      sandboxId: ctx.sandboxId,
-      command: mkdirCmd,
-      timeout,
-    });
-  }
-
-  // Write file using base64 encoding to safely transfer content
+  const escapedPath = escapeForShell(filePath);
   const encodedContent = Buffer.from(fileText, 'utf-8').toString('base64');
-  const writeCmd = `echo ${escapeForShell(encodedContent)} | base64 -d > ${escapeForShell(path)}`;
+
+  // Get directory path for mkdir
+  const dirPath = path.posix.dirname(filePath);
+  const mkdirPart = dirPath && dirPath !== '.' ? `mkdir -p ${escapeForShell(dirPath)} && ` : '';
+
+  // Single combined command: check existence, create dir, write file
+  const cmd = `is_update=$(test -f ${escapedPath} && echo 1 || echo 0); ${mkdirPart}echo ${escapeForShell(encodedContent)} | base64 -d > ${escapedPath} && echo "STATUS:$is_update"`;
 
   const result = await ctx.client.sandboxes.execCommand({
     sandboxId: ctx.sandboxId,
-    command: writeCmd,
+    command: cmd,
     timeout,
   });
 
-  if (result.exit_code !== 0) {
+  if (result.exit_code !== 0 || !result.stdout.includes('STATUS:')) {
     return {
-      error: `Failed to create file: ${path}`,
+      error: `Failed to create file: ${filePath}`,
       stderr: result.stderr,
     };
   }
 
+  const isUpdate = result.stdout.includes('STATUS:1');
+
   return {
     is_file_update: isUpdate,
-    message: `File ${isUpdate ? 'updated' : 'created'}: ${path}`,
+    message: `File ${isUpdate ? 'updated' : 'created'}: ${filePath}`,
   };
 }
 
 /**
  * Replace a string in a file.
+ *
+ * Uses a Python script on the sandbox to avoid transferring the entire file.
+ * Only the base64-encoded oldStr and newStr are sent.
  */
 export async function strReplace(
   ctx: SandboxContext,
-  path: string,
+  filePath: string,
   oldStr: string,
   newStr: string,
   timeout?: number
 ): Promise<StrReplaceResult> {
-  // First read the file content
-  const readCmd = `cat ${escapeForShell(path)}`;
+  const oldB64 = Buffer.from(oldStr, 'utf-8').toString('base64');
+  const newB64 = Buffer.from(newStr, 'utf-8').toString('base64');
+
+  // Write Python script and base64 encode it to avoid shell escaping issues
+  const pyScript = `import sys, base64, os
+old = base64.b64decode("${oldB64}").decode()
+new = base64.b64decode("${newB64}").decode()
+path = "${filePath}"
+if not os.path.exists(path):
+    print("FILE_NOT_FOUND")
+    sys.exit(1)
+with open(path, "r") as f:
+    content = f.read()
+count = content.count(old)
+if count == 0:
+    print("NOT_FOUND")
+    sys.exit(0)
+if count > 1:
+    print(f"MULTIPLE:{count}")
+    sys.exit(0)
+with open(path, "w") as f:
+    f.write(content.replace(old, new, 1))
+print("SUCCESS")
+`;
+  const scriptB64 = Buffer.from(pyScript, 'utf-8').toString('base64');
+  const cmd = `echo ${escapeForShell(scriptB64)} | base64 -d | python3`;
+
   const result = await ctx.client.sandboxes.execCommand({
     sandboxId: ctx.sandboxId,
-    command: readCmd,
+    command: cmd,
     timeout,
   });
 
-  if (result.exit_code !== 0) {
+  const output = result.stdout.trim();
+
+  if (result.exit_code !== 0 || output === 'FILE_NOT_FOUND') {
+    return { error: `File not found: ${filePath}`, stderr: result.stderr };
+  }
+
+  if (output === 'NOT_FOUND') {
+    return { error: `String not found in file: ${oldStr.substring(0, 50)}...` };
+  }
+
+  if (output.startsWith('MULTIPLE:')) {
+    const count = output.split(':')[1];
     return {
-      error: `File not found: ${path}`,
-      stderr: result.stderr,
+      error: `Multiple occurrences (${count}) of the string found. Please provide more context to make the match unique.`,
     };
   }
 
-  const originalContent = result.stdout;
-
-  // Check if oldStr exists in the file
-  if (!originalContent.includes(oldStr)) {
-    return {
-      error: `String not found in file: ${oldStr.substring(0, 50)}...`,
-    };
+  if (output === 'SUCCESS') {
+    return { msg: 'Successfully replaced text at exactly one location.' };
   }
 
-  // Count occurrences
-  let occurrences = 0;
-  let searchIndex = 0;
-  while (searchIndex < originalContent.length) {
-    const foundIndex = originalContent.indexOf(oldStr, searchIndex);
-    if (foundIndex === -1) break;
-    occurrences++;
-    searchIndex = foundIndex + oldStr.length;
-  }
-
-  if (occurrences > 1) {
-    return {
-      error: `Multiple occurrences (${occurrences}) of the string found. Please provide more context to make the match unique.`,
-    };
-  }
-
-  // Perform the replacement
-  const newContent = originalContent.replace(oldStr, newStr);
-
-  // Find the line numbers affected
-  const oldLines = originalContent.split('\n');
-  const newLines = newContent.split('\n');
-
-  // Find where the change starts
-  let oldStart = 1;
-  const minLen = Math.min(oldLines.length, newLines.length);
-  for (let i = 0; i < minLen; i++) {
-    if (oldLines[i] !== newLines[i]) {
-      oldStart = i + 1;
-      break;
-    }
-  }
-
-  // Write the new content
-  const encodedContent = Buffer.from(newContent, 'utf-8').toString('base64');
-  const writeCmd = `echo ${escapeForShell(encodedContent)} | base64 -d > ${escapeForShell(path)}`;
-
-  const writeResult = await ctx.client.sandboxes.execCommand({
-    sandboxId: ctx.sandboxId,
-    command: writeCmd,
-    timeout,
-  });
-
-  if (writeResult.exit_code !== 0) {
-    return {
-      error: `Failed to write file: ${path}`,
-      stderr: writeResult.stderr,
-    };
-  }
-
-  // Calculate diff info
-  const oldStrLines = oldStr.split('\n').length;
-  const newStrLines = newStr.split('\n').length;
-
-  // Build diff lines
-  const diffLines: string[] = [];
-  for (const line of oldStr.split('\n')) {
-    diffLines.push(`-${line}`);
-  }
-  for (const line of newStr.split('\n')) {
-    diffLines.push(`+${line}`);
-  }
-
-  return {
-    oldStart,
-    oldLines: oldStrLines,
-    newStart: oldStart,
-    newLines: newStrLines,
-    lines: diffLines,
-  };
+  return { error: `Unexpected response: ${output}`, stderr: result.stderr };
 }
