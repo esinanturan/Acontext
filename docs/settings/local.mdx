@@ -13,12 +13,12 @@ Acontext requires at least an OpenAI API Key to Start.
 ```bash .env
 LLM_API_KEY="YOUR_OPENAI_API_KEY"
 ```
-Place your `.env` file and run `acontext docker up` at the same directory:
+Place your `.env` file and run `acontext server up` at the same directory:
 ```bash server
 mkdir acontext_server && cd acontext_server
-acontext docker up
+acontext server up
 ```
-`acontext docker up` will create/use the existing `.env` and `config.yaml` for Acontext, and create a `db` folder to persist data.
+`acontext server up` will create/use the existing `.env` and `config.yaml` for Acontext, and create a `db` folder to persist data.
 
 Once it's done, you can access the following endpoints:
 - Acontext Base URL: http://localhost:8029/api/v1

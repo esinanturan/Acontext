@@ -194,8 +194,8 @@ func runCreate(cmd *cobra.Command, args []string) error {
 	fmt.Printf("   2. Read the README to get started:\n")
 	fmt.Printf("      cat README.md\n")
 	fmt.Println()
-	fmt.Printf("   3. Deploy with Docker (optional):\n")
-	fmt.Printf("      acontext docker up\n")
+	fmt.Printf("   3. Start Acontext server (optional):\n")
+	fmt.Printf("      acontext server up\n")
 	fmt.Println()
 
 	return nil
