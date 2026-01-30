@@ -1,3 +1,5 @@
+import fs from 'fs'
+import path from 'path'
 import { sqliteD1Adapter } from '@payloadcms/db-d1-sqlite'
 import {
   lexicalEditor,
@@ -7,7 +9,6 @@ import {
   BlocksFeature,
   CodeBlock,
 } from '@payloadcms/richtext-lexical'
-import path from 'path'
 import { buildConfig } from 'payload'
 import { fileURLToPath } from 'url'
 import { CloudflareContext, getCloudflareContext } from '@opennextjs/cloudflare'
@@ -21,8 +22,9 @@ import { Posts } from './collections/Posts'
 
 const filename = fileURLToPath(import.meta.url)
 const dirname = path.dirname(filename)
+const realpath = (value: string) => (fs.existsSync(value) ? fs.realpathSync(value) : undefined)
 
-const isCLI = process.argv.some((value) => value.match(/^(generate|migrate):?/))
+const isCLI = process.argv.some((value) => realpath(value).endsWith(path.join('payload', 'bin.js')))
 const isProduction = process.env.NODE_ENV === 'production'
 
 const cloudflare =
@@ -77,7 +79,7 @@ export default buildConfig({
   db: sqliteD1Adapter({ binding: cloudflare.env.D1 }),
   plugins: [
     r2Storage({
-      bucket: cloudflare.env.R2,
+      bucket: cloudflare.env.R2 as unknown as Parameters<typeof r2Storage>[0]['bucket'],
       collections: { media: true },
     }),
     seoPlugin({
