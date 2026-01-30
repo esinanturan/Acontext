@@ -1,5 +1,5 @@
 # Acontext
-Acontext is a platform for building AI agents with persistent context, observability, and self-learning capabilities.
+Acontext is a simple context storage for building cloud-native AI Agents
 
 ## NAVIGATION GUIDE
 - Python SDK: `src/client/acontext-py/`

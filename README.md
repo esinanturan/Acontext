@@ -51,12 +51,11 @@
 
 **...**
 
-That's why you need:
+Acontext is a simple context storage to help these problems.
 
 <div align="center">
-  	<strong>Acontext: Context Data Platform</strong>
     <picture>
-      <img alt="Acontext Learning" src="./assets/acontext-components.png" width="80%">
+      <img alt="Acontext Components" src="./assets/acontext-components.png" width="80%">
     </picture>
 </div>
 
@@ -65,9 +64,10 @@ That's why you need:
 
 
 
+
 # 💡 Core Features
 
-- **Context Engineering**
+- **Context Storage**
   - [Session](https://docs.acontext.io/store/messages/multi-provider): unified message storage for any llm, any modal.
     - [Context Editing](https://docs.acontext.io/engineering/editing) - manage your context window in one api.
   - [Disk](https://docs.acontext.io/store/disk): save/download artifacts with file path.
@@ -75,7 +75,7 @@ That's why you need:
   - [Sandbox](https://docs.acontext.io/store/sandbox) - run code, analyze data, export artifacts.
 
 
-- **Observe agent tasks and user feedback**
+- **Context Observability**
   - [Session Summary](https://docs.acontext.io/observe/agent_tasks): asynchronously summarize agent's progress and user feedback.
   - [State Tracking](https://docs.acontext.io/observe/agent_tasks): collect agent's working status in near real-time.
 - **View everything in one [dashboard](https://docs.acontext.io/observe/dashboard)**
@@ -122,8 +122,6 @@ mkdir acontext_server && cd acontext_server
 acontext server up
 ```
 
-> [!IMPORTANT]
->
 > Make sure your LLM has the ability to [call tools](https://platform.openai.com/docs/guides/function-calling). By default, Acontext will use `gpt-4.1`.
 
 `acontext server up` will create/use  `.env` and `config.yaml` for Acontext, and create a `db` folder to persist data.
@@ -145,11 +143,12 @@ Once it's done, you can access the following endpoints:
 
 We're maintaining Python [![pypi](https://img.shields.io/pypi/v/acontext.svg)](https://pypi.org/project/acontext/) and Typescript [![npm](https://img.shields.io/npm/v/@acontext/acontext.svg?logo=npm&logoColor=fff&style=flat&labelColor=2C2C2C&color=28CF8D)](https://www.npmjs.com/package/@acontext/acontext) SDKs. The snippets below are using Python.
 
+> Click the doc link to see TS SDK Quickstart.
+
 ## Install SDKs
 
-```
-pip install acontext # for Python
-npm i @acontext/acontext # for Typescript
+```bash
+pip install acontext
 ```
 
 
@@ -215,7 +214,7 @@ result = client.sessions.get_messages(
 )
 ```
 
-### Agent Tools & Skills
+### Agent Storage Tools
 <details>
 <summary>Disk Tool</summary>
 
@@ -344,11 +343,11 @@ Download end-to-end scripts with `acontext`:
 acontext create my-proj --template-path "python/openai-basic"
 ```
 
-> More examples on Python:
->
-> - `python/openai-agent-basic`: openai agent sdk template
-> - `python/agno-basic`: agno framework template
-> - `python/openai-agent-artifacts`: agent can edit and download artifacts.
+More examples on Python:
+
+- `python/openai-agent-basic`: openai agent sdk template
+- `python/agno-basic`: agno framework template
+- `python/openai-agent-artifacts`: agent can edit and download artifacts.
 
 **Typescript**
 
@@ -356,9 +355,8 @@ acontext create my-proj --template-path "python/openai-basic"
 acontext create my-proj --template-path "typescript/openai-basic"
 ```
 
-> More examples on Typescript:
->
-> - `typescript/vercel-ai-basic`: agent in @vercel/ai-sdk
+More examples on Typescript:
+- `typescript/vercel-ai-basic`: agent in @vercel/ai-sdk
 
 
 

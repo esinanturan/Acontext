@@ -12,11 +12,8 @@ We're always welcome to integrations PRs:
 
 
 ## Long-term effort
-
-- Lower LLM cost
 - Increase robustness; Reduce latency
 - Safer storage
-- Self-learning in more scenarios
 
 ## v0.1
 
