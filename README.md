@@ -1,8 +1,7 @@
 <div align="center">
-  <p>
-    <h1>Acontext</h1>
- 	  <strong>Simple Context Storage for Cloud Agents</strong>
- 	</p>
+  <a href="https://discord.acontext.io">
+      <img alt="Acontext - Simple Context Storage for Cloud Agents" src="./assets/Acontext-header-banner.png">
+  </a>
  	<p align="center">
  	  	<a href="https://acontext.io">🌐 Website</a>
       |
