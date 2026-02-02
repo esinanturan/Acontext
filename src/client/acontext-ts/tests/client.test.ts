@@ -75,7 +75,8 @@ describe('AcontextClient Unit Tests', () => {
         id: customUuid,
       });
       client.mock().onPost('/session', (options) => {
-        expect(options?.jsonData?.use_uuid).toBe(customUuid);
+        const data = options?.jsonData as Record<string, unknown>;
+        expect(data?.use_uuid).toBe(customUuid);
         return createdSession;
       });
 
@@ -89,7 +90,8 @@ describe('AcontextClient Unit Tests', () => {
     test('should create a session without custom UUID', async () => {
       const createdSession = mockSession();
       client.mock().onPost('/session', (options) => {
-        expect(options?.jsonData?.use_uuid).toBeUndefined();
+        const data = options?.jsonData as Record<string, unknown>;
+        expect(data?.use_uuid).toBeUndefined();
         return createdSession;
       });
 
@@ -105,9 +107,10 @@ describe('AcontextClient Unit Tests', () => {
         configs: { agent: 'bot1' },
       });
       client.mock().onPost('/session', (options) => {
-        expect(options?.jsonData?.use_uuid).toBe(customUuid);
-        expect(options?.jsonData?.user).toBe('alice@acontext.io');
-        expect(options?.jsonData?.configs).toEqual({ agent: 'bot1' });
+        const data = options?.jsonData as Record<string, unknown>;
+        expect(data?.use_uuid).toBe(customUuid);
+        expect(data?.user).toBe('alice@acontext.io');
+        expect(data?.configs).toEqual({ agent: 'bot1' });
         return createdSession;
       });
 
