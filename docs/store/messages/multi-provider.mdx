@@ -75,6 +75,31 @@ client.sessions.store_message(
 ```
 </Tab>
 </Tabs>
+
+<Tip>
+You can attach custom metadata to any message using the `meta` parameter:
+
+<CodeGroup>
+```python Python
+client.sessions.store_message(
+    session_id=session.id,
+    blob={"role": "user", "content": "Hello"},
+    format="openai",
+    meta={"source": "web", "request_id": "abc123"}
+)
+```
+
+```typescript TypeScript
+await client.sessions.storeMessage(session.id, {
+    blob: { role: "user", content: "Hello" },
+    format: "openai",
+    meta: { source: "web", requestId: "abc123" }
+});
+```
+</CodeGroup>
+
+This is useful for tracking message origin, request IDs, or any application-specific data. See [Message Meta](/store/messages/special/message-meta) for more details.
+</Tip>
 </Step>
 </Steps>
 
