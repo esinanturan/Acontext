@@ -327,8 +327,11 @@ acontext create my-proj --template-path "python/openai-basic"
 More examples on Python:
 
 - `python/openai-agent-basic`: openai agent sdk template
+- `python/openai-agent-artifacts`: agent can edit and download artifacts
+- `python/claude-agent-sdk`: claude agent sdk with `ClaudeAgentStorage`
 - `python/agno-basic`: agno framework template
-- `python/openai-agent-artifacts`: agent can edit and download artifacts.
+- `python/smolagents-basic`: smolagents (huggingface) template
+- `python/interactive-agent-skill`: interactive sandbox with mountable agent skills
 
 **Typescript**
 
@@ -338,6 +341,8 @@ acontext create my-proj --template-path "typescript/openai-basic"
 
 More examples on Typescript:
 - `typescript/vercel-ai-basic`: agent in @vercel/ai-sdk
+- `typescript/claude-agent-sdk`: claude agent sdk with `ClaudeAgentStorage`
+- `typescript/interactive-agent-skill`: interactive sandbox with mountable agent skills
 
 
 
