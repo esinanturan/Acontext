@@ -1,6 +1,6 @@
 ---
 name: "daily-logs"
-description: "Track daily activity logs and summaries for the user"
+description: "Track daily activity logs and summaries for the user. TRIGGER BY: read/edit user memory"
 ---
 # Daily Logs
 
