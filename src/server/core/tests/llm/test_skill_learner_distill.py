@@ -5,6 +5,7 @@ Covers:
 - DISTILL_SUCCESS_TOOL schema validation
 - DISTILL_FAILURE_TOOL schema validation
 - extract_distillation_result for success/failure/error paths
+- Triviality filter (is_worth_learning / skip_reason)
 - Distillation prompt content
 - pack_distillation_input formatting
 """
@@ -19,9 +20,10 @@ from acontext_core.schema.session.message import MessageBlob
 from acontext_core.llm.tool.skill_learner_lib.distill import (
     DISTILL_SUCCESS_TOOL,
     DISTILL_FAILURE_TOOL,
+    DistillationOutcome,
     extract_distillation_result,
 )
-from acontext_core.llm.prompt.skill_learner import SkillLearnerPrompt
+from acontext_core.llm.prompt.skill_distillation import SkillDistillationPrompt
 
 
 def _make_llm_response(tool_name: str, arguments: dict) -> LLMResponse:
@@ -93,6 +95,21 @@ class TestDistillSuccessToolSchema:
         assert props["key_decisions"]["type"] == "array"
         assert props["key_decisions"]["items"]["type"] == "string"
 
+    def test_has_is_worth_learning_required(self):
+        """is_worth_learning is in properties and required."""
+        props = DISTILL_SUCCESS_TOOL.function.parameters["properties"]
+        required = DISTILL_SUCCESS_TOOL.function.parameters["required"]
+        assert "is_worth_learning" in props
+        assert props["is_worth_learning"]["type"] == "boolean"
+        assert "is_worth_learning" in required
+
+    def test_has_skip_reason_optional(self):
+        """skip_reason is in properties but not required."""
+        props = DISTILL_SUCCESS_TOOL.function.parameters["properties"]
+        required = DISTILL_SUCCESS_TOOL.function.parameters["required"]
+        assert "skip_reason" in props
+        assert "skip_reason" not in required
+
 
 class TestDistillFailureToolSchema:
     def test_has_all_required_fields(self):
@@ -120,6 +137,21 @@ class TestDistillFailureToolSchema:
         assert "user_preferences_observed" in props
         assert "user_preferences_observed" not in required
 
+    def test_has_is_worth_learning_required(self):
+        """is_worth_learning is in properties and required."""
+        props = DISTILL_FAILURE_TOOL.function.parameters["properties"]
+        required = DISTILL_FAILURE_TOOL.function.parameters["required"]
+        assert "is_worth_learning" in props
+        assert props["is_worth_learning"]["type"] == "boolean"
+        assert "is_worth_learning" in required
+
+    def test_has_skip_reason_optional(self):
+        """skip_reason is in properties but not required."""
+        props = DISTILL_FAILURE_TOOL.function.parameters["properties"]
+        required = DISTILL_FAILURE_TOOL.function.parameters["required"]
+        assert "skip_reason" in props
+        assert "skip_reason" not in required
+
 
 # =============================================================================
 # extract_distillation_result tests
@@ -140,18 +172,21 @@ class TestExtractDistillationResultSuccess:
                 ],
                 "generalizable_pattern": "Always check token expiry before retrying.",
                 "user_preferences_observed": "User prefers minimal logging.",
+                "is_worth_learning": True,
             },
         )
         result = extract_distillation_result(resp)
         assert result.ok()
-        text, _ = result.unpack()
-        assert "## Task Analysis (Success)" in text
-        assert "Fix login bug" in text
-        assert "token expiry" in text
-        assert "Inspected the auth middleware first" in text
-        assert "Added token refresh before retry" in text
-        assert "Always check token expiry" in text
-        assert "minimal logging" in text
+        outcome, _ = result.unpack()
+        assert isinstance(outcome, DistillationOutcome)
+        assert outcome.is_worth_learning is True
+        assert "## Task Analysis (Success)" in outcome.distilled_text
+        assert "Fix login bug" in outcome.distilled_text
+        assert "token expiry" in outcome.distilled_text
+        assert "Inspected the auth middleware first" in outcome.distilled_text
+        assert "Added token refresh before retry" in outcome.distilled_text
+        assert "Always check token expiry" in outcome.distilled_text
+        assert "minimal logging" in outcome.distilled_text
 
     def test_success_without_optional_preferences(self):
         """Success extraction handles missing user_preferences_observed."""
@@ -162,12 +197,13 @@ class TestExtractDistillationResultSuccess:
                 "approach": "Used blue-green deployment.",
                 "key_decisions": ["Tested staging first"],
                 "generalizable_pattern": "Always test in staging.",
+                "is_worth_learning": True,
             },
         )
         result = extract_distillation_result(resp)
         assert result.ok()
-        text, _ = result.unpack()
-        assert "User Preferences Observed" not in text
+        outcome, _ = result.unpack()
+        assert "User Preferences Observed" not in outcome.distilled_text
 
     def test_success_missing_required_field(self):
         """Success extraction rejects when required field is missing."""
@@ -195,18 +231,21 @@ class TestExtractDistillationResultFailure:
                 "what_should_have_been_done": "Take backup before migration.",
                 "prevention_principle": "Always backup before destructive ops.",
                 "user_preferences_observed": "User wants zero downtime.",
+                "is_worth_learning": True,
             },
         )
         result = extract_distillation_result(resp)
         assert result.ok()
-        text, _ = result.unpack()
-        assert "## Task Analysis (Failure)" in text
-        assert "Migrate database" in text
-        assert "without backup" in text
-        assert "Assumed rollback" in text
-        assert "Take backup" in text
-        assert "Always backup" in text
-        assert "zero downtime" in text
+        outcome, _ = result.unpack()
+        assert isinstance(outcome, DistillationOutcome)
+        assert outcome.is_worth_learning is True
+        assert "## Task Analysis (Failure)" in outcome.distilled_text
+        assert "Migrate database" in outcome.distilled_text
+        assert "without backup" in outcome.distilled_text
+        assert "Assumed rollback" in outcome.distilled_text
+        assert "Take backup" in outcome.distilled_text
+        assert "Always backup" in outcome.distilled_text
+        assert "zero downtime" in outcome.distilled_text
 
     def test_failure_without_optional_preferences(self):
         """Failure extraction handles missing user_preferences_observed."""
@@ -218,12 +257,13 @@ class TestExtractDistillationResultFailure:
                 "flawed_reasoning": "Assumed it was the right file.",
                 "what_should_have_been_done": "Read the error trace first.",
                 "prevention_principle": "Always trace errors to source.",
+                "is_worth_learning": True,
             },
         )
         result = extract_distillation_result(resp)
         assert result.ok()
-        text, _ = result.unpack()
-        assert "User Preferences Observed" not in text
+        outcome, _ = result.unpack()
+        assert "User Preferences Observed" not in outcome.distilled_text
 
     def test_failure_missing_required_field(self):
         """Failure extraction rejects when required field is missing."""
@@ -253,6 +293,88 @@ class TestExtractDistillationResultErrors:
 
 
 # =============================================================================
+# Triviality filter (is_worth_learning) tests
+# =============================================================================
+
+
+class TestTrivialityFilter:
+    def test_not_worth_learning_returns_false(self):
+        """extract_distillation_result returns is_worth_learning=False + skip_reason when LLM sets it."""
+        resp = _make_llm_response(
+            "report_success_analysis",
+            {
+                "task_goal": "What time is it?",
+                "approach": "Looked up the current time.",
+                "key_decisions": ["None"],
+                "generalizable_pattern": "None",
+                "is_worth_learning": False,
+                "skip_reason": "simple factual lookup",
+            },
+        )
+        result = extract_distillation_result(resp)
+        assert result.ok()
+        outcome, _ = result.unpack()
+        assert outcome.is_worth_learning is False
+        assert outcome.skip_reason == "simple factual lookup"
+        assert outcome.distilled_text is not None
+
+    def test_worth_learning_returns_true(self):
+        """extract_distillation_result returns is_worth_learning=True with distilled_text."""
+        resp = _make_llm_response(
+            "report_success_analysis",
+            {
+                "task_goal": "Deploy API to staging",
+                "approach": "Used blue-green deployment with health checks.",
+                "key_decisions": ["Ran migrations first", "Verified health endpoint"],
+                "generalizable_pattern": "Always run migrations before switching traffic.",
+                "is_worth_learning": True,
+            },
+        )
+        result = extract_distillation_result(resp)
+        assert result.ok()
+        outcome, _ = result.unpack()
+        assert outcome.is_worth_learning is True
+        assert outcome.skip_reason is None
+        assert "Deploy API" in outcome.distilled_text
+
+    def test_defaults_to_worth_learning_when_field_missing(self):
+        """extract_distillation_result defaults to is_worth_learning=True if field is missing (fail-open)."""
+        resp = _make_llm_response(
+            "report_success_analysis",
+            {
+                "task_goal": "Fix auth bug",
+                "approach": "Fixed token refresh.",
+                "key_decisions": ["Checked middleware"],
+                "generalizable_pattern": "Validate tokens.",
+            },
+        )
+        result = extract_distillation_result(resp)
+        assert result.ok()
+        outcome, _ = result.unpack()
+        assert outcome.is_worth_learning is True
+
+    def test_failure_not_worth_learning(self):
+        """Failure analysis also supports is_worth_learning=False."""
+        resp = _make_llm_response(
+            "report_failure_analysis",
+            {
+                "task_goal": "Convert 5km to miles",
+                "failure_point": "Gave wrong conversion factor.",
+                "flawed_reasoning": "Used approximate factor.",
+                "what_should_have_been_done": "Use exact factor 0.621371.",
+                "prevention_principle": "Use precise conversion constants.",
+                "is_worth_learning": False,
+                "skip_reason": "one-shot calculation, no reusable pattern",
+            },
+        )
+        result = extract_distillation_result(resp)
+        assert result.ok()
+        outcome, _ = result.unpack()
+        assert outcome.is_worth_learning is False
+        assert outcome.skip_reason == "one-shot calculation, no reusable pattern"
+
+
+# =============================================================================
 # Distillation prompt tests
 # =============================================================================
 
@@ -260,15 +382,29 @@ class TestExtractDistillationResultErrors:
 class TestDistillationPrompts:
     def test_success_distillation_prompt_mentions_tool(self):
         """Success distillation prompt references report_success_analysis."""
-        prompt = SkillLearnerPrompt.success_distillation_prompt()
+        prompt = SkillDistillationPrompt.success_distillation_prompt()
         assert len(prompt) > 0
         assert "report_success_analysis" in prompt
 
     def test_failure_distillation_prompt_mentions_tool(self):
         """Failure distillation prompt references report_failure_analysis."""
-        prompt = SkillLearnerPrompt.failure_distillation_prompt()
+        prompt = SkillDistillationPrompt.failure_distillation_prompt()
         assert len(prompt) > 0
         assert "report_failure_analysis" in prompt
+
+    def test_success_prompt_includes_triviality_assessment(self):
+        """Success prompt instructs LLM to assess is_worth_learning."""
+        prompt = SkillDistillationPrompt.success_distillation_prompt()
+        assert "is_worth_learning" in prompt
+        assert "skip_reason" in prompt
+        assert "NOT worth learning" in prompt
+
+    def test_failure_prompt_includes_triviality_assessment(self):
+        """Failure prompt instructs LLM to assess is_worth_learning."""
+        prompt = SkillDistillationPrompt.failure_distillation_prompt()
+        assert "is_worth_learning" in prompt
+        assert "skip_reason" in prompt
+        assert "NOT worth learning" in prompt
 
 
 # =============================================================================
@@ -306,7 +442,7 @@ class TestPackDistillationInput:
         ]
         task_messages = []
 
-        result = SkillLearnerPrompt.pack_distillation_input(
+        result = SkillDistillationPrompt.pack_distillation_input(
             finished_task, task_messages, all_tasks
         )
         assert "## Finished Task" in result

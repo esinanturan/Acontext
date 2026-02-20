@@ -9,11 +9,12 @@ from ..data import task as TD
 from ..data import message as MD
 from ..data import learning_space as LS
 from ...llm.complete import llm_complete
-from ...llm.prompt.skill_learner import SkillLearnerPrompt
+from ...llm.prompt.skill_distillation import SkillDistillationPrompt
 from ...llm.tool.skill_learner_lib.distill import (
     DISTILL_SUCCESS_TOOL,
     DISTILL_FAILURE_TOOL,
     extract_distillation_result,
+    DistillationOutcome,
 )
 from ...llm.agent.skill_learner import skill_learner_agent
 
@@ -71,12 +72,12 @@ async def process_context_distillation(
     # Step 2: Context Distillation
     if finished_task.status == TaskStatus.SUCCESS:
         tool_schema = DISTILL_SUCCESS_TOOL
-        distill_system_prompt = SkillLearnerPrompt.success_distillation_prompt()
+        distill_system_prompt = SkillDistillationPrompt.success_distillation_prompt()
     else:
         tool_schema = DISTILL_FAILURE_TOOL
-        distill_system_prompt = SkillLearnerPrompt.failure_distillation_prompt()
+        distill_system_prompt = SkillDistillationPrompt.failure_distillation_prompt()
 
-    user_content = SkillLearnerPrompt.pack_distillation_input(
+    user_content = SkillDistillationPrompt.pack_distillation_input(
         finished_task, task_messages, all_tasks
     )
 
@@ -92,10 +93,17 @@ async def process_context_distillation(
         return Result.reject(f"Distillation LLM call failed: {eil}")
 
     distillation_result = extract_distillation_result(llm_return)
-    distilled_context, eil = distillation_result.unpack()
+    outcome, eil = distillation_result.unpack()
     if eil:
         LOG.warning(f"Skill learning distillation extraction failed: {eil}")
         return Result.reject(f"Distillation extraction failed: {eil}")
+
+    if not outcome.is_worth_learning:
+        LOG.info(
+            f"Skill learning: task {task_id} not worth learning, "
+            f"reason: {outcome.skip_reason or 'not specified'}"
+        )
+        return Result.resolve(None)
 
     return Result.resolve(
         SkillLearnDistilled(
@@ -103,7 +111,7 @@ async def process_context_distillation(
             session_id=session_id,
             task_id=task_id,
             learning_space_id=learning_space_id,
-            distilled_context=distilled_context,
+            distilled_context=outcome.distilled_text,
         )
     )
 

@@ -1,6 +1,25 @@
+from dataclasses import dataclass
 from ....schema.llm import ToolSchema, LLMResponse
 from ....schema.result import Result
 
+_WORTH_LEARNING_FIELD = {
+    "is_worth_learning": {
+        "type": "boolean",
+        "description": (
+            "Whether this task produced meaningful, reusable knowledge worth recording as a skill. "
+            "Set false for trivial tasks (simple lookups, small talk, one-shot calculations, "
+            "generic Q&A with no real procedure or decision)."
+        ),
+    },
+    "skip_reason": {
+        "type": "string",
+        "description": (
+            "If is_worth_learning is false, briefly explain why "
+            "(e.g. 'simple factual lookup', 'no procedure involved'). "
+            "Omit if is_worth_learning is true."
+        ),
+    },
+}
 
 DISTILL_SUCCESS_TOOL = ToolSchema(
     function={
@@ -14,12 +33,14 @@ DISTILL_SUCCESS_TOOL = ToolSchema(
                 "key_decisions": {"type": "array", "items": {"type": "string"}},
                 "generalizable_pattern": {"type": "string"},
                 "user_preferences_observed": {"type": "string"},
+                **_WORTH_LEARNING_FIELD,
             },
             "required": [
                 "task_goal",
                 "approach",
                 "key_decisions",
                 "generalizable_pattern",
+                "is_worth_learning",
             ],
         },
     }
@@ -38,6 +59,7 @@ DISTILL_FAILURE_TOOL = ToolSchema(
                 "what_should_have_been_done": {"type": "string"},
                 "prevention_principle": {"type": "string"},
                 "user_preferences_observed": {"type": "string"},
+                **_WORTH_LEARNING_FIELD,
             },
             "required": [
                 "task_goal",
@@ -45,14 +67,26 @@ DISTILL_FAILURE_TOOL = ToolSchema(
                 "flawed_reasoning",
                 "what_should_have_been_done",
                 "prevention_principle",
+                "is_worth_learning",
             ],
         },
     }
 )
 
 
-def extract_distillation_result(llm_return: LLMResponse) -> Result[str]:
-    """Extract tool call arguments from LLM response and format as readable text."""
+@dataclass
+class DistillationOutcome:
+    is_worth_learning: bool
+    distilled_text: str | None = None
+    skip_reason: str | None = None
+
+
+def extract_distillation_result(llm_return: LLMResponse) -> Result[DistillationOutcome]:
+    """Extract tool call arguments from LLM response and format as readable text.
+
+    Returns a DistillationOutcome with is_worth_learning, distilled_text, and skip_reason.
+    Defaults to is_worth_learning=True if the field is missing (fail-open).
+    """
     if not llm_return.tool_calls:
         return Result.reject("No tool calls in LLM response")
 
@@ -62,6 +96,9 @@ def extract_distillation_result(llm_return: LLMResponse) -> Result[str]:
 
     func_name = tool_call.function.name
     args = tool_call.function.arguments
+
+    is_worth_learning = args.get("is_worth_learning", True)
+    skip_reason = args.get("skip_reason")
 
     if func_name == "report_success_analysis":
         required = ["task_goal", "approach", "key_decisions", "generalizable_pattern"]
@@ -82,7 +119,13 @@ def extract_distillation_result(llm_return: LLMResponse) -> Result[str]:
             lines.append(
                 f"**User Preferences Observed:** {args['user_preferences_observed']}"
             )
-        return Result.resolve("\n".join(lines))
+        return Result.resolve(
+            DistillationOutcome(
+                is_worth_learning=is_worth_learning,
+                distilled_text="\n".join(lines),
+                skip_reason=skip_reason,
+            )
+        )
 
     elif func_name == "report_failure_analysis":
         required = [
@@ -108,7 +151,13 @@ def extract_distillation_result(llm_return: LLMResponse) -> Result[str]:
             lines.append(
                 f"**User Preferences Observed:** {args['user_preferences_observed']}"
             )
-        return Result.resolve("\n".join(lines))
+        return Result.resolve(
+            DistillationOutcome(
+                is_worth_learning=is_worth_learning,
+                distilled_text="\n".join(lines),
+                skip_reason=skip_reason,
+            )
+        )
 
     else:
         return Result.reject(f"Unexpected tool call: {func_name}")

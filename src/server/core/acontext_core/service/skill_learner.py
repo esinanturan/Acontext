@@ -60,7 +60,7 @@ async def process_skill_distillation(body: SkillLearnTask, message: Message):
 
     if distilled_payload is None:
         LOG.info(
-            f"Skill distillation: task {body.task_id} skipped (not success/failed)"
+            f"Skill distillation: task {body.task_id} skipped (task not actionable or not worth learning)"
         )
         return
 

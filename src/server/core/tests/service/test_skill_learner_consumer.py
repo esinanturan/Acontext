@@ -6,11 +6,13 @@ Covers:
 - Distillation consumer: skips when session has no learning space
 - Distillation consumer: does NOT publish when distillation fails
 - Distillation consumer: publishes correct learning_space_id
+- Distillation consumer: does NOT publish when trivial task is skipped
 - Agent consumer: acquires lock and calls run_skill_agent
 - Agent consumer: lock contention → republishes same SkillLearnDistilled body
 - Agent consumer: lock released in finally (even on error)
 - Agent consumer: logs session_id and task_id for observability
 - Controller: process_context_distillation error paths
+- Controller: process_context_distillation returns None for trivial tasks
 - Controller: run_skill_agent error paths
 - SkillLearnDistilled schema serialization round-trip
 - End-to-end: distillation → agent with correct args
@@ -646,6 +648,7 @@ class TestProcessContextDistillation:
                             "approach": "approach",
                             "key_decisions": ["d1"],
                             "generalizable_pattern": "pattern",
+                            "is_worth_learning": True,
                         },
                     ),
                     type="function",
@@ -692,6 +695,162 @@ class TestProcessContextDistillation:
             assert payload.task_id == task_id
             assert payload.learning_space_id == ls_id
             assert len(payload.distilled_context) > 0
+
+    @pytest.mark.asyncio
+    async def test_returns_none_when_not_worth_learning(self):
+        """Controller returns Result.resolve(None) when distillation says not worth learning."""
+        project_id = uuid.uuid4()
+        session_id = uuid.uuid4()
+        task_id = uuid.uuid4()
+        ls_id = uuid.uuid4()
+
+        mock_task = MagicMock()
+        mock_task.status = TaskStatus.SUCCESS
+        mock_task.raw_message_ids = []
+        mock_task.data = TaskData(task_description="What time is it?")
+
+        mock_tasks = [mock_task]
+
+        from pydantic import BaseModel
+        from acontext_core.schema.llm import LLMResponse, LLMToolCall, LLMFunction
+
+        class FakeRaw(BaseModel):
+            pass
+
+        mock_llm_response = LLMResponse(
+            role="assistant",
+            raw_response=FakeRaw(),
+            tool_calls=[
+                LLMToolCall(
+                    id="call_trivial",
+                    function=LLMFunction(
+                        name="report_success_analysis",
+                        arguments={
+                            "task_goal": "What time is it?",
+                            "approach": "Looked up the time.",
+                            "key_decisions": ["None"],
+                            "generalizable_pattern": "None",
+                            "is_worth_learning": False,
+                            "skip_reason": "simple factual lookup",
+                        },
+                    ),
+                    type="function",
+                )
+            ],
+        )
+
+        with (
+            patch(
+                "acontext_core.service.controller.skill_learner.DB_CLIENT"
+            ) as mock_db,
+            patch(
+                "acontext_core.service.controller.skill_learner.TD.fetch_task",
+                new_callable=AsyncMock,
+                return_value=Result.resolve(mock_task),
+            ),
+            patch(
+                "acontext_core.service.controller.skill_learner.TD.fetch_current_tasks",
+                new_callable=AsyncMock,
+                return_value=Result.resolve(mock_tasks),
+            ),
+            patch(
+                "acontext_core.service.controller.skill_learner.llm_complete",
+                new_callable=AsyncMock,
+                return_value=Result.resolve(mock_llm_response),
+            ),
+        ):
+            mock_session = AsyncMock()
+            mock_db.get_session_context.return_value.__aenter__ = AsyncMock(
+                return_value=mock_session
+            )
+            mock_db.get_session_context.return_value.__aexit__ = AsyncMock(
+                return_value=False
+            )
+
+            result = await process_context_distillation(
+                project_id, session_id, task_id, ls_id
+            )
+            assert result.ok()
+            payload, _ = result.unpack()
+            assert payload is None
+
+    @pytest.mark.asyncio
+    async def test_returns_distilled_when_worth_learning(self):
+        """Controller returns SkillLearnDistilled when distillation says worth learning."""
+        project_id = uuid.uuid4()
+        session_id = uuid.uuid4()
+        task_id = uuid.uuid4()
+        ls_id = uuid.uuid4()
+
+        mock_task = MagicMock()
+        mock_task.status = TaskStatus.SUCCESS
+        mock_task.raw_message_ids = []
+        mock_task.data = TaskData(task_description="Deploy API to staging")
+
+        mock_tasks = [mock_task]
+
+        from pydantic import BaseModel
+        from acontext_core.schema.llm import LLMResponse, LLMToolCall, LLMFunction
+
+        class FakeRaw(BaseModel):
+            pass
+
+        mock_llm_response = LLMResponse(
+            role="assistant",
+            raw_response=FakeRaw(),
+            tool_calls=[
+                LLMToolCall(
+                    id="call_nontrivial",
+                    function=LLMFunction(
+                        name="report_success_analysis",
+                        arguments={
+                            "task_goal": "Deploy API to staging",
+                            "approach": "Used blue-green deployment with health checks.",
+                            "key_decisions": ["Ran migrations first"],
+                            "generalizable_pattern": "Always run migrations before switching traffic.",
+                            "is_worth_learning": True,
+                        },
+                    ),
+                    type="function",
+                )
+            ],
+        )
+
+        with (
+            patch(
+                "acontext_core.service.controller.skill_learner.DB_CLIENT"
+            ) as mock_db,
+            patch(
+                "acontext_core.service.controller.skill_learner.TD.fetch_task",
+                new_callable=AsyncMock,
+                return_value=Result.resolve(mock_task),
+            ),
+            patch(
+                "acontext_core.service.controller.skill_learner.TD.fetch_current_tasks",
+                new_callable=AsyncMock,
+                return_value=Result.resolve(mock_tasks),
+            ),
+            patch(
+                "acontext_core.service.controller.skill_learner.llm_complete",
+                new_callable=AsyncMock,
+                return_value=Result.resolve(mock_llm_response),
+            ),
+        ):
+            mock_session = AsyncMock()
+            mock_db.get_session_context.return_value.__aenter__ = AsyncMock(
+                return_value=mock_session
+            )
+            mock_db.get_session_context.return_value.__aexit__ = AsyncMock(
+                return_value=False
+            )
+
+            result = await process_context_distillation(
+                project_id, session_id, task_id, ls_id
+            )
+            assert result.ok()
+            payload, _ = result.unpack()
+            assert isinstance(payload, SkillLearnDistilled)
+            assert "Deploy API" in payload.distilled_context
 
 
 # =============================================================================
@@ -943,6 +1102,7 @@ class TestEndToEnd:
                             "approach": "Checked token expiry and fixed refresh.",
                             "key_decisions": ["Inspected auth middleware"],
                             "generalizable_pattern": "Always check token expiry.",
+                            "is_worth_learning": True,
                         },
                     ),
                     type="function",
@@ -1031,6 +1191,7 @@ class TestEndToEnd:
                             "flawed_reasoning": "Assumed rollback would work.",
                             "what_should_have_been_done": "Take backup first.",
                             "prevention_principle": "Always backup before destructive ops.",
+                            "is_worth_learning": True,
                         },
                     ),
                     type="function",
