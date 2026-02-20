@@ -295,6 +295,11 @@ class TestAgentLoopDrainPublish:
                 return_value=Result.resolve([task]),
             ),
             patch(
+                "acontext_core.llm.agent.task.TD.fetch_planning_task",
+                new_callable=AsyncMock,
+                return_value=Result.resolve(None),
+            ),
+            patch(
                 "acontext_core.llm.agent.task.llm_complete",
                 new_callable=AsyncMock,
                 return_value=Result.resolve(llm_response),
@@ -319,7 +324,7 @@ class TestAgentLoopDrainPublish:
                 project_id=project_id,
                 session_id=session_id,
                 messages=[_make_mock_message()],
-                enable_skill_learning=True,
+                learning_space_id=uuid.uuid4(),
             )
 
             assert result.ok()
@@ -331,7 +336,7 @@ class TestAgentLoopDrainPublish:
 
     @pytest.mark.asyncio
     async def test_learning_disabled_no_publish(self):
-        """Agent loop with enable_skill_learning=False does NOT publish."""
+        """Agent loop with learning_space_id=None does NOT publish."""
         session_id = uuid.uuid4()
         project_id = uuid.uuid4()
         task = TaskSchema(
@@ -370,6 +375,11 @@ class TestAgentLoopDrainPublish:
                 return_value=Result.resolve([task]),
             ),
             patch(
+                "acontext_core.llm.agent.task.TD.fetch_planning_task",
+                new_callable=AsyncMock,
+                return_value=Result.resolve(None),
+            ),
+            patch(
                 "acontext_core.llm.agent.task.llm_complete",
                 new_callable=AsyncMock,
                 return_value=Result.resolve(llm_response),
@@ -394,7 +404,6 @@ class TestAgentLoopDrainPublish:
                 project_id=project_id,
                 session_id=session_id,
                 messages=[_make_mock_message()],
-                enable_skill_learning=False,
             )
 
             assert result.ok()
@@ -460,6 +469,11 @@ class TestAgentLoopDrainPublish:
                 return_value=Result.resolve([task1, task2]),
             ),
             patch(
+                "acontext_core.llm.agent.task.TD.fetch_planning_task",
+                new_callable=AsyncMock,
+                return_value=Result.resolve(None),
+            ),
+            patch(
                 "acontext_core.llm.agent.task.llm_complete",
                 new_callable=AsyncMock,
                 return_value=Result.resolve(llm_response),
@@ -487,7 +501,7 @@ class TestAgentLoopDrainPublish:
                 project_id=project_id,
                 session_id=session_id,
                 messages=[_make_mock_message()],
-                enable_skill_learning=True,
+                learning_space_id=uuid.uuid4(),
             )
 
             assert result.ok()
@@ -547,6 +561,11 @@ class TestAgentLoopDrainPublish:
                 return_value=Result.resolve([task]),
             ),
             patch(
+                "acontext_core.llm.agent.task.TD.fetch_planning_task",
+                new_callable=AsyncMock,
+                return_value=Result.resolve(None),
+            ),
+            patch(
                 "acontext_core.llm.agent.task.llm_complete",
                 new_callable=AsyncMock,
                 side_effect=[
@@ -574,7 +593,7 @@ class TestAgentLoopDrainPublish:
                 project_id=project_id,
                 session_id=session_id,
                 messages=[_make_mock_message()],
-                enable_skill_learning=True,
+                learning_space_id=uuid.uuid4(),
             )
 
             assert result.ok()

@@ -106,6 +106,7 @@ class TestAtomicityOnSuccess:
             patch("acontext_core.llm.agent.task.TASK_TOOLS", mock_tools),
             patch("acontext_core.llm.agent.task.build_task_ctx", new_callable=AsyncMock, return_value=mock_ctx),
             patch("acontext_core.llm.agent.task.TD.fetch_current_tasks", new_callable=AsyncMock, return_value=Result.resolve([])),
+            patch("acontext_core.llm.agent.task.TD.fetch_planning_task", new_callable=AsyncMock, return_value=Result.resolve(None)),
             patch("acontext_core.llm.agent.task.DB_CLIENT") as mock_db_client,
         ):
             # First call returns tool calls, second returns no tool calls (stop)
@@ -185,6 +186,7 @@ class TestAtomicityOnFailure:
             patch("acontext_core.llm.agent.task.TASK_TOOLS", mock_tools),
             patch("acontext_core.llm.agent.task.build_task_ctx", new_callable=AsyncMock, return_value=mock_ctx),
             patch("acontext_core.llm.agent.task.TD.fetch_current_tasks", new_callable=AsyncMock, return_value=Result.resolve([])),
+            patch("acontext_core.llm.agent.task.TD.fetch_planning_task", new_callable=AsyncMock, return_value=Result.resolve(None)),
             patch("acontext_core.llm.agent.task.DB_CLIENT") as mock_db_client,
         ):
             mock_llm.return_value = Result.resolve(llm_response)
@@ -262,6 +264,7 @@ class TestContextRebuildWithinTransaction:
             patch("acontext_core.llm.agent.task.TASK_TOOLS", mock_tools),
             patch("acontext_core.llm.agent.task.build_task_ctx", side_effect=fake_build_task_ctx),
             patch("acontext_core.llm.agent.task.TD.fetch_current_tasks", new_callable=AsyncMock, return_value=Result.resolve([])),
+            patch("acontext_core.llm.agent.task.TD.fetch_planning_task", new_callable=AsyncMock, return_value=Result.resolve(None)),
             patch("acontext_core.llm.agent.task.DB_CLIENT") as mock_db_client,
         ):
             mock_llm.side_effect = [
