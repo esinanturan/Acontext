@@ -10,6 +10,7 @@ from ..client_types import AsyncRequesterProtocol
 from ..messages import AcontextMessage
 from ..types.session import (
     EditStrategy,
+    CopySessionResult,
     GetMessagesOutput,
     GetTasksOutput,
     ListSessionsOutput,
@@ -502,3 +503,27 @@ class AsyncSessionsAPI:
             json_data=payload,
         )
         return data.get("configs", {})  # type: ignore
+
+    async def copy(self, session_id: str) -> CopySessionResult:
+        """Copy (duplicate) a session with all its messages and tasks.
+
+        Creates a complete copy of the session including all messages, tasks, and configurations.
+        The copied session will be independent and modifications to it won't affect the original.
+
+        Args:
+            session_id: The UUID of the session to copy.
+
+        Returns:
+            CopySessionResult containing the original and new session IDs.
+
+        Raises:
+            APIError: If the request fails, session is not found, or session exceeds
+                the maximum copyable size (5000 messages).
+
+        Example:
+            >>> result = await client.sessions.copy(session_id)
+            >>> print(f"Copied session: {result.new_session_id}")
+            >>> print(f"Original session: {result.old_session_id}")
+        """
+        data = await self._requester.request("POST", f"/session/{session_id}/copy")
+        return CopySessionResult.model_validate(data)

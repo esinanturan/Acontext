@@ -82,6 +82,8 @@ func NewRouter(d RouterDeps) *gin.Engine {
 
 			session.GET("/:session_id/observing_status", d.SessionHandler.GetSessionObservingStatus)
 
+			session.POST("/:session_id/copy", d.SessionHandler.CopySession)
+
 			task := session.Group("/:session_id/task")
 			{
 				task.GET("", d.TaskHandler.GetTasks)

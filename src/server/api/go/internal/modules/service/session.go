@@ -36,6 +36,17 @@ type SessionService interface {
 	GetSessionObservingStatus(ctx context.Context, sessionID string) (*model.MessageObservingStatus, error)
 	PatchMessageMeta(ctx context.Context, projectID uuid.UUID, sessionID uuid.UUID, messageID uuid.UUID, patchMeta map[string]interface{}) (map[string]interface{}, error)
 	PatchConfigs(ctx context.Context, projectID uuid.UUID, sessionID uuid.UUID, patchConfigs map[string]interface{}) (map[string]interface{}, error)
+	CopySession(ctx context.Context, in CopySessionInput) (*CopySessionOutput, error)
+}
+
+type CopySessionInput struct {
+	ProjectID uuid.UUID
+	SessionID uuid.UUID
+}
+
+type CopySessionOutput struct {
+	OldSessionID uuid.UUID `json:"old_session_id"`
+	NewSessionID uuid.UUID `json:"new_session_id"`
 }
 
 type sessionService struct {
@@ -159,9 +170,9 @@ type StoreMQPublishJSON struct {
 
 type PartIn struct {
 	Type      string                 `json:"type" validate:"required,oneof=text image audio video file tool-call tool-result data thinking"` // "text" | "image" | ...
-	Text      string                 `json:"text,omitempty"`                                                                                 // Text sharding
-	FileField string                 `json:"file_field,omitempty"`                                                                           // File field name in the form
-	Meta      map[string]interface{} `json:"meta,omitempty"`                                                                                 // [Optional] metadata
+	Text      string                 `json:"text,omitempty"`                                                                        // Text sharding
+	FileField string                 `json:"file_field,omitempty"`                                                                  // File field name in the form
+	Meta      map[string]interface{} `json:"meta,omitempty"`                                                                        // [Optional] metadata
 }
 
 func (p *PartIn) Validate() error {
@@ -742,4 +753,35 @@ func (s *sessionService) PatchConfigs(
 	}
 
 	return existingConfigs, nil
+}
+
+// CopySession creates a complete copy of a session with all its messages and tasks.
+// Returns CopySessionOutput containing old and new session IDs.
+func (s *sessionService) CopySession(ctx context.Context, in CopySessionInput) (*CopySessionOutput, error) {
+	// Verify session exists and belongs to project
+	session, err := s.sessionRepo.Get(ctx, &model.Session{ID: in.SessionID})
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrSessionNotFound
+		}
+		return nil, fmt.Errorf("failed to get session: %w", err)
+	}
+	if session.ProjectID != in.ProjectID {
+		return nil, ErrSessionNotFound
+	}
+
+	// Perform copy operation (size limit check is done atomically inside the transaction)
+	result, err := s.sessionRepo.CopySession(ctx, in.SessionID)
+	if err != nil {
+		// Check for size limit error
+		if errors.Is(err, repo.ErrSessionTooLarge) {
+			return nil, fmt.Errorf("%w: %v", ErrSessionTooLarge, err)
+		}
+		return nil, fmt.Errorf("%w: %v", ErrCopyFailed, err)
+	}
+
+	return &CopySessionOutput{
+		OldSessionID: result.OldSessionID,
+		NewSessionID: result.NewSessionID,
+	}, nil
 }

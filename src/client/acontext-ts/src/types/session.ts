@@ -143,6 +143,13 @@ export const MessageObservingStatusSchema = z.object({
 
 export type MessageObservingStatus = z.infer<typeof MessageObservingStatusSchema>;
 
+export const CopySessionResultSchema = z.object({
+  old_session_id: z.string(),
+  new_session_id: z.string(),
+});
+
+export type CopySessionResult = z.infer<typeof CopySessionResultSchema>;
+
 /**
  * Parameters for the remove_tool_result edit strategy.
  */

@@ -5,10 +5,12 @@
 import { RequesterProtocol } from '../client-types';
 import { AcontextMessage, AcontextMessageInput } from '../messages';
 import { FileUpload } from '../uploads';
-import { buildParams } from '../utils';
+import { buildParams, validateUUID } from '../utils';
 import {
   EditStrategy,
   EditStrategySchema,
+  CopySessionResult,
+  CopySessionResultSchema,
   GetMessagesOutput,
   GetMessagesOutputSchema,
   GetTasksOutput,
@@ -437,5 +439,27 @@ export class SessionsAPI {
       jsonData: payload,
     });
     return (data as { configs: Record<string, unknown> }).configs ?? {};
+  }
+
+  /**
+   * Copy (duplicate) a session with all its messages and tasks.
+   *
+   * Creates a complete copy of the session including all messages, tasks, and configurations.
+   * The copied session will be independent and modifications to it won't affect the original.
+   *
+   * @param sessionId - The UUID of the session to copy.
+   * @returns CopySessionResult containing the original and new session IDs.
+   * @throws {Error} If session_id is invalid or session doesn't exist.
+   * @throws {Error} If session exceeds maximum copyable size (5000 messages).
+   *
+   * @example
+   * const result = await client.sessions.copy(sessionId);
+   * console.log(`Copied session: ${result.newSessionId}`);
+   * console.log(`Original session: ${result.oldSessionId}`);
+   */
+  async copy(sessionId: string): Promise<CopySessionResult> {
+    validateUUID(sessionId, 'sessionId');
+    const data = await this.requester.request('POST', `/session/${sessionId}/copy`);
+    return CopySessionResultSchema.parse(data);
   }
 }

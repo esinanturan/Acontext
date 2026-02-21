@@ -303,3 +303,10 @@ class MessageObservingStatus(BaseModel):
     )
     pending: int = Field(..., description="Number of messages with pending status")
     updated_at: str = Field(..., description="Timestamp when the status was retrieved")
+
+
+class CopySessionResult(BaseModel):
+    """Response model for copying a session."""
+
+    old_session_id: str = Field(..., description="UUID of the original session")
+    new_session_id: str = Field(..., description="UUID of the copied (new) session")

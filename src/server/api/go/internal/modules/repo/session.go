@@ -3,6 +3,7 @@ package repo
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
@@ -14,6 +15,14 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
+
+const (
+	// MaxCopyableMessages is the maximum number of messages allowed for synchronous copy
+	MaxCopyableMessages = 5000
+)
+
+// ErrSessionTooLarge is returned when a session exceeds MaxCopyableMessages.
+var ErrSessionTooLarge = errors.New("session exceeds maximum copyable size")
 
 type SessionRepo interface {
 	Create(ctx context.Context, s *model.Session) error
@@ -29,6 +38,13 @@ type SessionRepo interface {
 	PopGeminiCallIDAndName(ctx context.Context, sessionID uuid.UUID) (string, string, error)
 	GetMessageByID(ctx context.Context, sessionID uuid.UUID, messageID uuid.UUID) (*model.Message, error)
 	UpdateMessageMeta(ctx context.Context, messageID uuid.UUID, meta datatypes.JSONType[map[string]interface{}]) error
+	CopySession(ctx context.Context, sessionID uuid.UUID) (*CopySessionResult, error)
+}
+
+// CopySessionResult contains the result of a copy operation
+type CopySessionResult struct {
+	OldSessionID uuid.UUID
+	NewSessionID uuid.UUID
 }
 
 type sessionRepo struct {
@@ -417,4 +433,171 @@ func (r *sessionRepo) UpdateMessageMeta(ctx context.Context, messageID uuid.UUID
 		Model(&model.Message{}).
 		Where("id = ?", messageID).
 		Update("meta", meta).Error
+}
+
+// CopySession creates a complete copy of a session with all its messages and tasks.
+// Uses SELECT FOR UPDATE to lock the session during the copy operation.
+// Returns CopySessionResult containing old and new session IDs.
+//
+// The operation is split into two phases to keep the lock window small:
+//  1. Transaction: lock session, create new session/messages/tasks, increment partsAsset refs.
+//  2. Post-transaction: download S3 parts to discover per-part assets, increment those refs.
+func (r *sessionRepo) CopySession(ctx context.Context, sessionID uuid.UUID) (*CopySessionResult, error) {
+	var result CopySessionResult
+	result.OldSessionID = sessionID
+
+	// partsAssets collects the parts-envelope assets; populated inside the transaction.
+	var partsAssets []model.Asset
+	var projectID uuid.UUID
+
+	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		// Get original session with row-level lock to prevent concurrent modifications
+		var originalSession model.Session
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where("id = ?", sessionID).
+			First(&originalSession).Error; err != nil {
+			return fmt.Errorf("failed to get session: %w", err)
+		}
+		projectID = originalSession.ProjectID
+
+		// Get all messages from original session (ordered by created_at to preserve parent relationships)
+		var originalMessages []model.Message
+		if err := tx.Where("session_id = ?", sessionID).
+			Order("created_at ASC, id ASC").
+			Find(&originalMessages).Error; err != nil {
+			return fmt.Errorf("failed to get messages: %w", err)
+		}
+
+		// Check session size limit (inside transaction after SELECT FOR UPDATE to prevent race conditions)
+		if len(originalMessages) > MaxCopyableMessages {
+			return fmt.Errorf("%w (%d messages)", ErrSessionTooLarge, len(originalMessages))
+		}
+
+		// Create new session with copied configs
+		newSession := model.Session{
+			ProjectID:           originalSession.ProjectID,
+			UserID:              originalSession.UserID,
+			DisableTaskTracking: originalSession.DisableTaskTracking,
+			Configs:             originalSession.Configs,
+		}
+		if err := tx.Create(&newSession).Error; err != nil {
+			return fmt.Errorf("failed to create new session: %w", err)
+		}
+		result.NewSessionID = newSession.ID
+
+		// Pre-assign new IDs so we can build the parent-ID mapping before inserting.
+		oldToNewMessageID := make(map[uuid.UUID]uuid.UUID, len(originalMessages))
+		for _, oldMsg := range originalMessages {
+			oldToNewMessageID[oldMsg.ID] = uuid.New()
+		}
+
+		// Build the new messages slice with remapped parent IDs.
+		newMessages := make([]model.Message, 0, len(originalMessages))
+		for _, oldMsg := range originalMessages {
+			newMsg := model.Message{
+				ID:                       oldToNewMessageID[oldMsg.ID],
+				SessionID:                newSession.ID,
+				Role:                     oldMsg.Role,
+				PartsAssetMeta:           oldMsg.PartsAssetMeta,
+				Meta:                     oldMsg.Meta,
+				SessionTaskProcessStatus: "pending",
+				TaskID:                   nil,
+			}
+
+			if oldMsg.ParentID != nil {
+				if newParentID, ok := oldToNewMessageID[*oldMsg.ParentID]; ok {
+					newMsg.ParentID = &newParentID
+				} else {
+					r.log.Warn("message has parent_id not found in mapping",
+						zap.String("message_id", oldMsg.ID.String()),
+						zap.String("parent_id", oldMsg.ParentID.String()))
+				}
+			}
+
+			newMessages = append(newMessages, newMsg)
+
+			// Collect parts-envelope assets for reference counting.
+			partsAsset := oldMsg.PartsAssetMeta.Data()
+			if partsAsset.SHA256 != "" {
+				partsAssets = append(partsAssets, partsAsset)
+			}
+		}
+
+		// Batch insert all messages in one go instead of one INSERT per row.
+		if len(newMessages) > 0 {
+			if err := tx.CreateInBatches(newMessages, 100).Error; err != nil {
+				return fmt.Errorf("failed to create messages: %w", err)
+			}
+		}
+
+		// Copy tasks
+		var originalTasks []model.Task
+		if err := tx.Where("session_id = ?", sessionID).
+			Order("\"order\" ASC").
+			Find(&originalTasks).Error; err != nil {
+			return fmt.Errorf("failed to get tasks: %w", err)
+		}
+
+		if len(originalTasks) > 0 {
+			newTasks := make([]model.Task, 0, len(originalTasks))
+			for _, oldTask := range originalTasks {
+				newTasks = append(newTasks, model.Task{
+					SessionID:  newSession.ID,
+					ProjectID:  oldTask.ProjectID,
+					Order:      oldTask.Order,
+					Data:       oldTask.Data,
+					Status:     oldTask.Status,
+					IsPlanning: oldTask.IsPlanning,
+				})
+			}
+			if err := tx.CreateInBatches(newTasks, 100).Error; err != nil {
+				return fmt.Errorf("failed to create tasks: %w", err)
+			}
+		}
+
+		// Increment refs for parts-envelope assets using tx so this is atomic
+		// with the session/message creation above.
+		if len(partsAssets) > 0 {
+			txAssetRepo := NewAssetReferenceRepo(tx, r.s3)
+			if err := txAssetRepo.BatchIncrementAssetRefs(ctx, projectID, partsAssets); err != nil {
+				return fmt.Errorf("failed to increment asset references: %w", err)
+			}
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	// Phase 2 (post-transaction): download S3 parts to discover per-part assets and
+	// increment their refs. This is done outside the transaction to avoid holding the
+	// session lock during N network round-trips.
+	if r.s3 != nil && len(partsAssets) > 0 {
+		var partLevelAssets []model.Asset
+		for _, partsAsset := range partsAssets {
+			if partsAsset.S3Key == "" {
+				continue
+			}
+			parts := []model.Part{}
+			if err := r.s3.DownloadJSON(ctx, partsAsset.S3Key, &parts); err != nil {
+				r.log.Warn("failed to download parts for asset extraction",
+					zap.Error(err), zap.String("s3_key", partsAsset.S3Key))
+				continue
+			}
+			for _, part := range parts {
+				if part.Asset != nil && part.Asset.SHA256 != "" {
+					partLevelAssets = append(partLevelAssets, *part.Asset)
+				}
+			}
+		}
+		if len(partLevelAssets) > 0 {
+			if err := r.assetReferenceRepo.BatchIncrementAssetRefs(ctx, projectID, partLevelAssets); err != nil {
+				return nil, fmt.Errorf("failed to increment part-level asset references: %w", err)
+			}
+		}
+	}
+
+	return &result, nil
 }
