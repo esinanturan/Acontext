@@ -30,7 +30,7 @@ export function Hero() {
         <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
           <Button size="lg" className="min-w-48 h-12 text-base font-semibold" asChild>
             <a
-              href="https://docs.acontext.io/store/messages/multi-provider"
+              href="https://docs.acontext.app/store/messages/multi-provider"
               target="_blank"
               rel="noopener noreferrer"
             >

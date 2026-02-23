@@ -5,7 +5,7 @@
  	<p align="center">
  	  	<a href="https://acontext.io">🌐 Website</a>
       |
- 	  	<a href="https://docs.acontext.io">📚 Document</a>
+ 	  	<a href="https://docs.acontext.app">📚 Document</a>
   </p>
   <p align="center">
     <a href="https://pypi.org/project/acontext/"><img src="https://img.shields.io/pypi/v/acontext.svg"></a>
@@ -52,18 +52,18 @@ Unifies context storage, observability, and skill memory for production AI agent
 
 # 💡 Core Features
 
-- **Skill Memory** — [What is Skill Memory?](https://docs.acontext.io/learn/skill-memory)
-  - [Agent Skills](https://docs.acontext.io/store/skill) - filesystem-compatible, configurable, human-readable skill files
-  - [Skill Memory Quickstart](https://docs.acontext.io/learn/quick) - agents automatically build and update skills from successful sessions
+- **Skill Memory** — [What is Skill Memory?](https://docs.acontext.app/learn/skill-memory)
+  - [Agent Skills](https://docs.acontext.app/store/skill) - filesystem-compatible, configurable, human-readable skill files
+  - [Skill Memory Quickstart](https://docs.acontext.app/learn/quick) - agents automatically build and update skills from successful sessions
 - **Context Storage**
-  - [Session](https://docs.acontext.io/store/messages/multi-provider): save agent history from any LLM, any modality
-    - [Context Editing](https://docs.acontext.io/engineering/editing) - edit context window in one API
-  - [Disk](https://docs.acontext.io/store/disk): virtual, persistent filesystem
-  - [Sandbox](https://docs.acontext.io/store/sandbox) - run code, analyze data, export artifacts
+  - [Session](https://docs.acontext.app/store/messages/multi-provider): save agent history from any LLM, any modality
+    - [Context Editing](https://docs.acontext.app/engineering/editing) - edit context window in one API
+  - [Disk](https://docs.acontext.app/store/disk): virtual, persistent filesystem
+  - [Sandbox](https://docs.acontext.app/store/sandbox) - run code, analyze data, export artifacts
 - **Observability**
-  - [Session Summary](https://docs.acontext.io/observe/agent_tasks): asynchronously summarize agent progress and user feedback
-  - [State Tracking](https://docs.acontext.io/observe/agent_tasks): collect agent status in near real-time
-  - View everything in one [dashboard](https://docs.acontext.io/observe/dashboard)
+  - [Session Summary](https://docs.acontext.app/observe/agent_tasks): asynchronously summarize agent progress and user feedback
+  - [State Tracking](https://docs.acontext.app/observe/agent_tasks): collect agent status in near real-time
+  - View everything in one [dashboard](https://docs.acontext.app/observe/dashboard)
 
 <div align="center">
     <picture>
@@ -156,7 +156,7 @@ client = AcontextClient(
 
 ### Skill Memory in 3 Steps
 
-> [Docs](https://docs.acontext.io/learn/skill-memory)
+> [Docs](https://docs.acontext.app/learn/skill-memory)
 
 Create a learning space, store agent sessions, and let Acontext automatically build skill memory.
 
@@ -194,12 +194,12 @@ for skill in skills:
 
 Acontext also provides unified context storage, observability, and agent tools:
 
-- **[Multi-provider Messages](https://docs.acontext.io/store/messages/multi-provider)** — Store in OpenAI/Anthropic/Gemini format, auto-convert on retrieval
-- **[Context Engineering](https://docs.acontext.io/engineering/editing)** — Compress context with summaries and edit strategies
-- **[Disk](https://docs.acontext.io/store/disk)** — Virtual, persistent filesystem for agents
-- **[Sandbox](https://docs.acontext.io/store/sandbox)** — Isolated code execution with bash, Python, and [mountable skills](https://docs.acontext.io/tool/bash_tools#mounting-skills-in-sandbox)
-- **[Observability](https://docs.acontext.io/observe/dashboard)** — Track agent tasks, success rates, and replay trajectories
-- **[Agent Tools](https://docs.acontext.io/tool/whatis)** — Disk tools, sandbox tools, and skill tools for LLM function calling
+- **[Multi-provider Messages](https://docs.acontext.app/store/messages/multi-provider)** — Store in OpenAI/Anthropic/Gemini format, auto-convert on retrieval
+- **[Context Engineering](https://docs.acontext.app/engineering/editing)** — Compress context with summaries and edit strategies
+- **[Disk](https://docs.acontext.app/store/disk)** — Virtual, persistent filesystem for agents
+- **[Sandbox](https://docs.acontext.app/store/sandbox)** — Isolated code execution with bash, Python, and [mountable skills](https://docs.acontext.app/tool/bash_tools#mounting-skills-in-sandbox)
+- **[Observability](https://docs.acontext.app/observe/dashboard)** — Track agent tasks, success rates, and replay trajectories
+- **[Agent Tools](https://docs.acontext.app/tool/whatis)** — Disk tools, sandbox tools, and skill tools for LLM function calling
 
 
 
@@ -249,7 +249,7 @@ More examples on Typescript:
 
 # 🔍 Document
 
-To learn more about skill memory and what Acontext can do, visit [our docs](https://docs.acontext.io/) or start with [What is Skill Memory?](https://docs.acontext.io/learn/skill-memory)
+To learn more about skill memory and what Acontext can do, visit [our docs](https://docs.acontext.app/) or start with [What is Skill Memory?](https://docs.acontext.app/learn/skill-memory)
 
 
 

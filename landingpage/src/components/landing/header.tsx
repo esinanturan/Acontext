@@ -219,11 +219,10 @@ export function Header() {
 
                 {/* Product Dropdown */}
                 <div
-                  className={`absolute left-1/2 -translate-x-1/2 top-full pt-2 transition-all duration-200 ${
-                    showProductDropdown
+                  className={`absolute left-1/2 -translate-x-1/2 top-full pt-2 transition-all duration-200 ${showProductDropdown
                       ? 'opacity-100 visible translate-y-0'
                       : 'opacity-0 invisible -translate-y-1'
-                  }`}
+                    }`}
                 >
                   <div className="w-[280px] bg-popover border border-border rounded-lg shadow-xl overflow-hidden">
                     <div className="px-3 py-2 border-b border-border/50 bg-muted/20 flex items-center justify-between">
@@ -349,7 +348,7 @@ export function Header() {
                 onMouseLeave={handleDocsMouseLeave}
               >
                 <Link
-                  href="https://docs.acontext.io"
+                  href="https://docs.acontext.app"
                   className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors"
                   aria-label="Go to documentation (opens in new tab)"
                 >
@@ -358,11 +357,10 @@ export function Header() {
 
                 {/* Docs Dropdown */}
                 <div
-                  className={`absolute left-1/2 -translate-x-1/2 top-full pt-2 transition-all duration-200 ${
-                    showDocsDropdown
+                  className={`absolute left-1/2 -translate-x-1/2 top-full pt-2 transition-all duration-200 ${showDocsDropdown
                       ? 'opacity-100 visible translate-y-0'
                       : 'opacity-0 invisible -translate-y-1'
-                  }`}
+                    }`}
                 >
                   <div className="w-[480px] bg-popover border border-border rounded-lg shadow-xl overflow-hidden">
                     {/* Two Column Layout */}
@@ -376,7 +374,7 @@ export function Header() {
                         </div>
                         <div className="py-1">
                           <Link
-                            href="https://docs.acontext.io/api-reference/introduction"
+                            href="https://docs.acontext.app/api-reference/introduction"
                             target="_blank"
                             rel="noopener noreferrer"
                             className="block px-3 py-1 hover:bg-muted/50 transition-colors group"
@@ -395,7 +393,7 @@ export function Header() {
                             </div>
                           </Link>
                           <Link
-                            href="https://docs.acontext.io/api-reference/agent_skills/create-agent-skill"
+                            href="https://docs.acontext.app/api-reference/agent_skills/create-agent-skill"
                             target="_blank"
                             rel="noopener noreferrer"
                             className="block px-3 py-1 hover:bg-muted/50 transition-colors group"
@@ -414,7 +412,7 @@ export function Header() {
                             </div>
                           </Link>
                           <Link
-                            href="https://docs.acontext.io/api-reference/artifact/get-artifact"
+                            href="https://docs.acontext.app/api-reference/artifact/get-artifact"
                             target="_blank"
                             rel="noopener noreferrer"
                             className="block px-3 py-1 hover:bg-muted/50 transition-colors group"
@@ -433,7 +431,7 @@ export function Header() {
                             </div>
                           </Link>
                           <Link
-                            href="https://docs.acontext.io/api-reference/disk/create-disk"
+                            href="https://docs.acontext.app/api-reference/disk/create-disk"
                             target="_blank"
                             rel="noopener noreferrer"
                             className="block px-3 py-1 hover:bg-muted/50 transition-colors group"
@@ -452,7 +450,7 @@ export function Header() {
                             </div>
                           </Link>
                           <Link
-                            href="https://docs.acontext.io/api-reference/sessions/create-session"
+                            href="https://docs.acontext.app/api-reference/sessions/create-session"
                             target="_blank"
                             rel="noopener noreferrer"
                             className="block px-3 py-1 hover:bg-muted/50 transition-colors group"
@@ -471,7 +469,7 @@ export function Header() {
                             </div>
                           </Link>
                           <Link
-                            href="https://docs.acontext.io/api-reference/sandbox/create-a-new-sandbox"
+                            href="https://docs.acontext.app/api-reference/sandbox/create-a-new-sandbox"
                             target="_blank"
                             rel="noopener noreferrer"
                             className="block px-3 py-1 hover:bg-muted/50 transition-colors group"
@@ -499,7 +497,7 @@ export function Header() {
                             Guides
                           </span>
                           <Link
-                            href="https://docs.acontext.io"
+                            href="https://docs.acontext.app"
                             target="_blank"
                             rel="noopener noreferrer"
                             className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors"
@@ -511,7 +509,7 @@ export function Header() {
                         </div>
                         <div className="py-1">
                           <Link
-                            href="https://docs.acontext.io/store/messages"
+                            href="https://docs.acontext.app/store/messages"
                             target="_blank"
                             rel="noopener noreferrer"
                             className="block px-3 py-1 hover:bg-muted/50 transition-colors group"
@@ -530,7 +528,7 @@ export function Header() {
                             </div>
                           </Link>
                           <Link
-                            href="https://docs.acontext.io/store/artifacts"
+                            href="https://docs.acontext.app/store/artifacts"
                             target="_blank"
                             rel="noopener noreferrer"
                             className="block px-3 py-1 hover:bg-muted/50 transition-colors group"
@@ -549,7 +547,7 @@ export function Header() {
                             </div>
                           </Link>
                           <Link
-                            href="https://docs.acontext.io/observe/dashboard"
+                            href="https://docs.acontext.app/observe/dashboard"
                             target="_blank"
                             rel="noopener noreferrer"
                             className="block px-3 py-1 hover:bg-muted/50 transition-colors group"
@@ -568,7 +566,7 @@ export function Header() {
                             </div>
                           </Link>
                           <Link
-                            href="https://docs.acontext.io/observe/traces"
+                            href="https://docs.acontext.app/observe/traces"
                             target="_blank"
                             rel="noopener noreferrer"
                             className="block px-3 py-1 hover:bg-muted/50 transition-colors group"
@@ -587,7 +585,7 @@ export function Header() {
                             </div>
                           </Link>
                           <Link
-                            href="https://docs.acontext.io/observe/agent_tasks"
+                            href="https://docs.acontext.app/observe/agent_tasks"
                             target="_blank"
                             rel="noopener noreferrer"
                             className="block px-3 py-1 hover:bg-muted/50 transition-colors group"
@@ -626,11 +624,10 @@ export function Header() {
 
                 {/* Blog Dropdown */}
                 <div
-                  className={`absolute left-1/2 -translate-x-1/2 top-full pt-2 transition-all duration-200 ${
-                    showBlogDropdown
+                  className={`absolute left-1/2 -translate-x-1/2 top-full pt-2 transition-all duration-200 ${showBlogDropdown
                       ? 'opacity-100 visible translate-y-0'
                       : 'opacity-0 invisible -translate-y-1'
-                  }`}
+                    }`}
                 >
                   <div className="w-96 bg-popover border border-border rounded-lg shadow-xl overflow-hidden">
                     {/* Header */}
@@ -763,11 +760,10 @@ export function Header() {
       {/* Mobile Menu */}
       <div
         ref={mobileMenuRef}
-        className={`fixed left-0 top-16 flex h-[calc(100vh-4rem)] w-full origin-top bg-background text-foreground md:hidden z-100 transition-all duration-300 ease-in-out ${
-          showMobileMenu
+        className={`fixed left-0 top-16 flex h-[calc(100vh-4rem)] w-full origin-top bg-background text-foreground md:hidden z-100 transition-all duration-300 ease-in-out ${showMobileMenu
             ? 'opacity-100 scale-y-100 translate-y-0'
             : 'opacity-0 scale-y-95 -translate-y-4 pointer-events-none'
-        }`}
+          }`}
       >
         <div className="flex h-full max-h-full w-full flex-col px-3">
           <div className="flex h-full max-h-full flex-col overflow-y-auto px-3 pb-40">
@@ -892,7 +888,7 @@ export function Header() {
                 </div>
               </Link>
               <Link
-                href="https://docs.acontext.io"
+                href="https://docs.acontext.app"
                 target="_blank"
                 rel="noopener noreferrer"
                 onClick={handleMobileLinkClick}

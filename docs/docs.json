@@ -183,12 +183,12 @@
         },
         {
           "anchor": "Integrations",
-          "href": "https://docs.acontext.io/integrations",
+          "href": "https://docs.acontext.app/integrations",
           "icon": "plug"
         },
         {
           "anchor": "API",
-          "href": "https://docs.acontext.io/api-reference",
+          "href": "https://docs.acontext.app/api-reference",
           "icon": "code"
         }
       ]

@@ -37,7 +37,7 @@ const TABS: Tab[] = [
     activeColor: 'border-blue-500 text-blue-400',
     description:
       'Store and retrieve agent messages in any LLM format — OpenAI, Anthropic, Gemini.',
-    docsUrl: 'https://docs.acontext.io/store/messages',
+    docsUrl: 'https://docs.acontext.app/store/messages',
     snippets: {
       python: {
         filename: 'store.py',
@@ -93,7 +93,7 @@ const messages = await client.sessions.getMessages(
     activeColor: 'border-emerald-500 text-emerald-400',
     description:
       'Agents learn from every session. Skills are plain markdown you can read, edit, and version.',
-    docsUrl: 'https://docs.acontext.io/learn/quick',
+    docsUrl: 'https://docs.acontext.app/learn/quick',
     snippets: {
       python: {
         filename: 'learn.py',
@@ -153,7 +153,7 @@ for (const skill of skills) {
     activeColor: 'border-violet-500 text-violet-400',
     description:
       'Edit, compress, and trim context on-the-fly — without modifying stored messages.',
-    docsUrl: 'https://docs.acontext.io/engineering/editing',
+    docsUrl: 'https://docs.acontext.app/engineering/editing',
     snippets: {
       python: {
         filename: 'engineer.py',
@@ -211,7 +211,7 @@ console.log(\`Tokens: \${result.this_time_tokens}\`)`,
     activeColor: 'border-amber-500 text-amber-400',
     description:
       'Auto-extract tasks from conversations and generate token-efficient session summaries.',
-    docsUrl: 'https://docs.acontext.io/observe/agent_tasks',
+    docsUrl: 'https://docs.acontext.app/observe/agent_tasks',
     snippets: {
       python: {
         filename: 'observe.py',
