@@ -835,7 +835,7 @@ export function FeaturesOverviewAnimation() {
                       transform: 'translateY(-10px)',
                     }}
                   >
-                    Context Data Platform for AI Agents
+                    Skill Memory Platform for AI Agents
                   </p>
 
                   <div className="flex gap-8 justify-center items-center">
@@ -857,7 +857,7 @@ export function FeaturesOverviewAnimation() {
                       dataPillar="learn"
                       icon="🧠"
                       title="Learn"
-                      description="Experience & skills"
+                      description="Skill memory"
                       color={colors.accent}
                     />
                   </div>
@@ -1080,7 +1080,7 @@ export function FeaturesOverviewAnimation() {
                       transform: 'translateY(-20px)',
                     }}
                   >
-                    Experience Learning & Skills
+                    Skill Memory
                   </h3>
 
                   <div className="grid grid-cols-2 gap-6 w-full max-w-5xl mb-6">

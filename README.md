@@ -37,7 +37,7 @@ Unifies context storage, observability, and skill memory for production AI agent
 - **Context data is scattered** — messages, files, and skills live in different storages with no unified interface
 - **No observability on agent state** — you can't track success rates, replay trajectories, or know if your agent is actually working
 
-#### Acontext's Approach: Skill Memory
+#### Acontext's Approach
 
 - **Memory stored as skills** — plain markdown files your team can read, edit, version control, and mount in sandboxes
 - **Configurable schemas** — each SKILL.md defines how memory is organized, not the platform

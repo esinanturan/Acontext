@@ -38,8 +38,8 @@ const TABS: FeatureTab[] = [
   {
     id: 'skills',
     title: 'Learn',
-    subtitle: 'Skill Learning',
-    description: 'Attach a session to a Learning Space and Acontext automatically distills successful task outcomes into reusable skills — your agents improve with every run.',
+    subtitle: 'Skill Memory',
+    description: 'Attach a session to a Learning Space and Acontext automatically builds skill memory from successful outcomes — your agents improve with every run.',
     color: TAB_COLORS.skills,
     icon: Sparkles,
     duration: 11_000,

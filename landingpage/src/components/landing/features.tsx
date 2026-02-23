@@ -492,7 +492,7 @@ export function Features() {
             Platform Capabilities
           </h2>
           <p className="text-muted-foreground max-w-2xl mx-auto">
-            The production-grade infrastructure your agents need — storage, observability, self-learning, and more.
+            The production-grade infrastructure your agents need — storage, observability, skill memory, and more.
           </p>
         </div>
 
