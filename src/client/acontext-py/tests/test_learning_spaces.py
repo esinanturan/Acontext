@@ -3,7 +3,7 @@ Sync tests for the LearningSpacesAPI resource.
 """
 
 import json
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 import pytest
 
