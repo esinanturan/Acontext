@@ -1,6 +1,6 @@
 <div align="center">
   <a href="https://discord.acontext.io">
-      <img alt="Acontext - The Agent Memory Stack" src="./assets/Acontext-header-banner.jpg">
+      <img alt="Acontext - The Agent Memory Stack" src="./assets/Acontext-header-banner.png">
   </a>
  	<p align="center">
  	  	<a href="https://acontext.io">🌐 Website</a>
@@ -19,6 +19,7 @@
     <a href="https://discord.acontext.io"><img src="https://img.shields.io/badge/dynamic/json?label=Acontext&style=flat&query=approximate_member_count&url=https%3A%2F%2Fdiscord.com%2Fapi%2Fv10%2Finvites%2FSG9xJcqVBu%3Fwith_counts%3Dtrue&logo=discord&logoColor=white&suffix=+members&color=36393f&labelColor=5765F2" alt="Acontext Discord"></a>
   </p>
 </div>
+
 
 
 
