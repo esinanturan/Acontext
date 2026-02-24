@@ -1,5 +1,5 @@
 # Acontext
-Acontext is a skill memory platform for building cloud-native AI Agents
+Acontext is the agent memory stack for production AI Agents
 
 ## NAVIGATION GUIDE
 - Python SDK: `src/client/acontext-py/`

@@ -66,7 +66,7 @@ export function Advantages() {
         <div className="text-center space-y-4 mb-12">
           <h2 className="text-3xl sm:text-4xl font-bold">Three Advantages</h2>
           <p className="text-muted-foreground max-w-2xl mx-auto">
-            Skill memory gives you properties no other agent memory system offers.
+            Long-term Skill gives you properties no other agent memory system offers.
           </p>
         </div>
 

@@ -1,17 +1,17 @@
 import Script from 'next/script'
 import type { Metadata } from 'next'
-import { Hero, Features, Comparison, HowItWorks } from '@/components/context-storage'
+import { Hero, Features, Comparison, HowItWorks } from '@/components/short-term-memory'
 import { StandaloneComparison, scenes } from '@/components/landing/acontext-vs-claude'
 import { createSoftwareApplicationJsonLd, generateJsonLdScript } from '@/lib/jsonld'
 
 const baseUrl = process.env.NEXT_PUBLIC_SERVER_URL || 'https://acontext.io'
 
 export const metadata: Metadata = {
-  title: 'Context Storage - Messages, Files & Skills | Acontext',
+  title: 'Short-term Memory - Messages, Files & Skills | Acontext',
   description:
     'Complete agent storage: multi-provider messages (OpenAI, Anthropic, Gemini), S3-backed disk storage with search, and reusable skill packages that agents discover and use.',
   keywords: [
-    'context storage',
+    'short-term memory',
     'AI agent context',
     'session management',
     'multi-provider',
@@ -26,29 +26,29 @@ export const metadata: Metadata = {
     'skill tools',
   ],
   openGraph: {
-    title: 'Context Storage - Messages, Files & Skills | Acontext',
+    title: 'Short-term Memory - Messages, Files & Skills | Acontext',
     description:
       'Complete agent storage: multi-provider messages, S3-backed disk storage, and reusable skill packages in one platform.',
-    url: `${baseUrl}/product/context-storage`,
+    url: `${baseUrl}/product/short-term-memory`,
     siteName: 'Acontext',
     type: 'website',
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Context Storage - Messages, Files & Skills | Acontext',
+    title: 'Short-term Memory - Messages, Files & Skills | Acontext',
     description:
       'Complete agent storage: multi-provider messages, S3-backed disk storage, and reusable skill packages in one platform.',
   },
   alternates: {
-    canonical: `${baseUrl}/product/context-storage`,
+    canonical: `${baseUrl}/product/short-term-memory`,
   },
 }
 
-export default function ContextStoragePage() {
+export default function ShortTermMemoryPage() {
   const jsonLd = createSoftwareApplicationJsonLd(
-    'Acontext Context Storage',
+    'Acontext Short-term Memory',
     'Complete agent storage — multi-provider messages, S3-backed disk storage with search, and reusable skill packages that agents discover and use.',
-    `${baseUrl}/product/context-storage`,
+    `${baseUrl}/product/short-term-memory`,
     {
       applicationCategory: 'DeveloperApplication',
       operatingSystem: 'Any',
@@ -60,7 +60,7 @@ export default function ContextStoragePage() {
   return (
     <>
       <Script
-        id="context-storage-jsonld"
+        id="short-term-memory-jsonld"
         type="application/ld+json"
         dangerouslySetInnerHTML={{
           __html: generateJsonLdScript(jsonLd),

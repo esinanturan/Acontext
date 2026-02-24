@@ -67,8 +67,8 @@ export const colorSchemes: Record<number, ColorStop[]> = {
 export const scenes: Scene[] = [
   {
     id: 1,
-    badge: 'Context Storage',
-    title: 'Context Storage Platform',
+    badge: 'Short-term Memory',
+    title: 'Short-term Memory Platform',
     acontext: {
       title: 'Acontext Sessions',
       subtitle: 'Store · Retrieve · Multi-Provider Format',

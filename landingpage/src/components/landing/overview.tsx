@@ -18,8 +18,8 @@ const TABS: FeatureTab[] = [
   {
     id: 'store',
     title: 'Store',
-    subtitle: 'Sessions & Disk',
-    description: 'Store and retrieve messages across OpenAI, Anthropic, and Gemini with automatic format conversion.',
+    subtitle: 'Short-term Memory',
+    description: 'Session-scoped storage for messages, files, and artifacts — retrieve in OpenAI, Anthropic, or Gemini format with automatic conversion.',
     color: TAB_COLORS.store,
     icon: Database,
     duration: 14_000,
@@ -28,8 +28,8 @@ const TABS: FeatureTab[] = [
   {
     id: 'observe',
     title: 'Observe',
-    subtitle: 'Task Extraction',
-    description: 'Auto-extract tasks from agent conversations with real-time observation and tracking.',
+    subtitle: 'Mid-term State',
+    description: 'Track task status, progress, and summaries across agent sessions with auto-extraction and real-time observation.',
     color: TAB_COLORS.observe,
     icon: Eye,
     duration: 16_000,
@@ -38,8 +38,8 @@ const TABS: FeatureTab[] = [
   {
     id: 'skills',
     title: 'Learn',
-    subtitle: 'Skill Memory',
-    description: 'Attach a session to a Learning Space and Acontext automatically builds skill memory from successful outcomes — your agents improve with every run.',
+    subtitle: 'Long-term Skill',
+    description: 'Attach a session to a Learning Space and Acontext automatically builds long-term skills from successful outcomes — your agents improve with every run.',
     color: TAB_COLORS.skills,
     icon: Sparkles,
     duration: 11_000,

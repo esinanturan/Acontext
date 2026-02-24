@@ -15,7 +15,7 @@ export function Hero() {
         </div>
 
         <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold tracking-tight mb-6">
-          <span className="hero-text-gradient">Context Observability</span>
+          <span className="hero-text-gradient">Mid-term State</span>
         </h1>
 
         <p className="text-lg sm:text-xl md:text-2xl text-muted-foreground max-w-3xl mx-auto leading-relaxed mb-4">

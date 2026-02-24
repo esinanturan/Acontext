@@ -1,6 +1,6 @@
 <div align="center">
   <a href="https://discord.acontext.io">
-      <img alt="Acontext - Skill Memory Platform for AI Agents" src="./assets/Acontext-header-banner.png">
+      <img alt="Acontext - The Agent Memory Stack" src="./assets/Acontext-header-banner.jpg">
   </a>
  	<p align="center">
  	  	<a href="https://acontext.io">🌐 Website</a>
@@ -23,9 +23,10 @@
 
 
 
-Acontext is a skill memory platform for production AI agents. Think of it as Supabase for agent context — with skill-based memory your agents build and humans can actually read.
 
-Unifies context storage, observability, and skill memory for production AI agents — filesystem-compatible, configurable, and human-readable.
+Acontext is the **memory stack** for production AI agents. Think of it as Supabase for agent memory.
+
+Unifies **short-term memory, mid-term state, and long-term skill** for production AI agents.
 
 
 
@@ -33,44 +34,37 @@ Unifies context storage, observability, and skill memory for production AI agent
 
 #### The Problem
 
-- **Your agent's memory is a black box** — vector stores and key-value memory are opaque, not inspectable, and not version controllable
 - **Context data is scattered** — messages, files, and skills live in different storages with no unified interface
 - **No observability on agent state** — you can't track success rates, replay trajectories, or know if your agent is actually working
+- **Your agent's memory is a black box** — vector stores and key-value memory are opaque, not inspectable, and not version controllable
 
 #### Acontext's Approach
 
-- **Memory stored as skills** — plain markdown files your team can read, edit, version control, and mount in sandboxes
-- **Configurable schemas** — each SKILL.md defines how memory is organized, not the platform
-- **Automatic learning** — agents distill successful task outcomes into reusable skill files, improving with every run
-- **Unified context storage** for messages, files, and skills — integrated with Claude Agent SDK, AI-SDK, OpenAI SDK...
-- **Built-in observability** — replay trajectories, track success rates, and monitor agents in real-time
+- **Short-term Memory** — unified storage for messages, files, and artifacts — integrated with Claude Agent SDK, AI-SDK, OpenAI SDK...
+- **Mid-term State** — replay trajectories, track success rates, and monitor agents in real-time
+- **Long-term Skill** — agents distill successful/failed task outcomes into reusable, human-readable skill files, improving with every run
 
 <div align="center">
-      <img alt="Acontext - Skill Memory Platform for AI Agents" src="./assets/acontext-components.png">  
+      <img alt="Acontext - The Agent Memory Stack" src="./assets/acontext-components.png">  
 </div>
 
 
 # 💡 Core Features
 
-- **Skill Memory** — [What is Skill Memory?](https://docs.acontext.app/learn/skill-memory)
-  - [Agent Skills](https://docs.acontext.app/store/skill) - filesystem-compatible, configurable, human-readable skill files
-  - [Skill Memory Quickstart](https://docs.acontext.app/learn/quick) - agents automatically build and update skills from successful sessions
-- **Context Storage**
+- **Short-term Memory**
   - [Session](https://docs.acontext.app/store/messages/multi-provider): save agent history from any LLM, any modality
-    - [Context Editing](https://docs.acontext.app/engineering/editing) - edit context window in one API
   - [Disk](https://docs.acontext.app/store/disk): virtual, persistent filesystem
-  - [Sandbox](https://docs.acontext.app/store/sandbox) - run code, analyze data, export artifacts
-- **Observability**
-  - [Session Summary](https://docs.acontext.app/observe/agent_tasks): asynchronously summarize agent progress and user feedback
-  - [State Tracking](https://docs.acontext.app/observe/agent_tasks): collect agent status in near real-time
-  - View everything in one [dashboard](https://docs.acontext.app/observe/dashboard)
+- **Mid-term State**
+  - [State Tracking](https://docs.acontext.app/observe/agent_tasks): collect agent states in near real-time
+- **Long-term Skill**
+  - [Long-term Skill Memory](https://docs.acontext.app/learn/quick) - agents automatically build and update skills from successful/failed sessions
 
 <div align="center">
     <picture>
       <img alt="Dashboard" src="./docs/images/dashboard/BI.png" width="80%">
     </picture>
-  <p>Dashboard of Agent Success Rate and Other Metrics</p>
 </div>
+
 
 
 
@@ -154,51 +148,38 @@ client = AcontextClient(
 
 
 
-### Skill Memory in 3 Steps
+### The Memory Stack in 3 Steps
 
-> [Docs](https://docs.acontext.app/learn/skill-memory)
-
-Create a learning space, store agent sessions, and let Acontext automatically build skill memory.
+Store a message, get agent state, and retrieve learned skills — one API for each layer.
 
 ```python
-# 1. Create a learning space
-space = client.learning_spaces.create()
-
-# 2. Attach sessions
 session = client.sessions.create()
+space = client.learning_spaces.create()
 client.learning_spaces.learn(space.id, session_id=session.id)
 
-# 3. Learn from the session — Acontext distills it into skill files
+# 1. Short-term Memory — store messages in any LLM format
 client.sessions.store_message(
     session_id=session.id,
-    blob={"role": "user", "content": "My name is Gus"},
+    blob={"role": "user", "content": "Deploy the new API to staging"},
 )
-# ... your agent runs, storing messages along the way ...
-# ... agent completes the task ...
+# ... your agent runs ...
+msgs = client.sessions.get_messages(session_id=session.id)
 
+# 2. Mid-term State — get extracted tasks, progress, and summaries
+summary = client.sessions.get_session_summary(session_id=session.id)
+print(summary)
 
-
-# View the learned skills (plain markdown files you can read, edit, version control)
+# 3. Long-term Skill — retrieve skills the agent learned
 skills = client.learning_spaces.list_skills(space.id)
 for skill in skills:
-    print(f"\n=== {skill.name} ===")
-    print(f"Description: {skill.description}")
-    print(f"Files:")
-    for f in skill.file_index:
-        print(f"  {f.path}")
-        content = client.skills.get_file(skill_id=skill.id, file_path=f.path)
-        print(content.content.raw)
+    print(f"{skill.name}: {skill.description}")
 ```
 
 ### More Features
 
-Acontext also provides unified context storage, observability, and agent tools:
-
-- **[Multi-provider Messages](https://docs.acontext.app/store/messages/multi-provider)** — Store in OpenAI/Anthropic/Gemini format, auto-convert on retrieval
 - **[Context Engineering](https://docs.acontext.app/engineering/editing)** — Compress context with summaries and edit strategies
 - **[Disk](https://docs.acontext.app/store/disk)** — Virtual, persistent filesystem for agents
 - **[Sandbox](https://docs.acontext.app/store/sandbox)** — Isolated code execution with bash, Python, and [mountable skills](https://docs.acontext.app/tool/bash_tools#mounting-skills-in-sandbox)
-- **[Observability](https://docs.acontext.app/observe/dashboard)** — Track agent tasks, success rates, and replay trajectories
 - **[Agent Tools](https://docs.acontext.app/tool/whatis)** — Disk tools, sandbox tools, and skill tools for LLM function calling
 
 
@@ -249,7 +230,7 @@ More examples on Typescript:
 
 # 🔍 Document
 
-To learn more about skill memory and what Acontext can do, visit [our docs](https://docs.acontext.app/) or start with [What is Skill Memory?](https://docs.acontext.app/learn/skill-memory)
+To learn more about long-term skill and what Acontext can do, visit [our docs](https://docs.acontext.app/) or start with [What is Long-term Skill?](https://docs.acontext.app/learn/skill-memory)
 
 
 

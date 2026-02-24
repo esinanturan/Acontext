@@ -35,7 +35,7 @@ interface FeatureCategory {
 
 const categories: FeatureCategory[] = [
   {
-    name: 'Context Storage',
+    name: 'Short-term Memory',
     description: 'Store and manage all agent context in one place',
     features: [
       {
@@ -107,7 +107,7 @@ const categories: FeatureCategory[] = [
     ],
   },
   {
-    name: 'Skill Memory',
+    name: 'Long-term Skill',
     description: 'Let agents learn and improve from every run',
     features: [
       {

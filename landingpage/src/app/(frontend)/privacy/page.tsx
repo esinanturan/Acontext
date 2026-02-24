@@ -4,7 +4,7 @@ const baseUrl = process.env.NEXT_PUBLIC_SERVER_URL || 'https://acontext.io'
 
 export const metadata: Metadata = {
   title: 'Privacy Policy - Acontext',
-  description: 'Privacy Policy for Acontext - Skill Memory Platform for AI Agents',
+  description: 'Privacy Policy for Acontext - The Agent Memory Stack',
   alternates: {
     canonical: `${baseUrl}/privacy`,
   },

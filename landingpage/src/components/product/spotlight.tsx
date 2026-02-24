@@ -22,27 +22,27 @@ interface SpotlightCard {
 
 const spotlightCards: SpotlightCard[] = [
   {
-    title: 'Context Storage',
+    title: 'Short-term Memory',
     description:
       'Store and manage messages, files, and artifacts across OpenAI, Anthropic, and Gemini formats. Organize by session with disk storage and sandbox execution.',
     icon: Database,
-    href: '/product/context-storage',
+    href: '/product/short-term-memory',
     gradient: 'from-blue-500/20 to-cyan-500/20',
   },
   {
-    title: 'Context Observability',
+    title: 'Mid-term State',
     description:
       'Monitor agent tasks, trace execution flows, and track success rates in real-time. Visualize agent behavior with dashboards and detailed traces.',
     icon: BarChart3,
-    href: '/product/context-observability',
+    href: '/product/mid-term-state',
     gradient: 'from-indigo-500/20 to-blue-500/20',
   },
   {
-    title: 'Skill Memory',
+    title: 'Long-term Skill',
     description:
       'Automatically distill agent sessions into reusable, human-readable skills. Create learning spaces that let agents improve from every run.',
     icon: Sparkles,
-    href: '/product/skill-memory',
+    href: '/product/long-term-skill',
     gradient: 'from-violet-500/20 to-purple-500/20',
   },
   {

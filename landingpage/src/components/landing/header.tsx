@@ -240,9 +240,9 @@ export function Header() {
                     </div>
                     <div className="py-1">
                       <Link
-                        href="/product/context-storage"
+                        href="/product/short-term-memory"
                         className="block px-3 py-1 hover:bg-muted/50 transition-colors group"
-                        aria-label="Go to Context Storage page"
+                        aria-label="Go to Short-term Memory page"
                       >
                         <div className="flex items-center justify-between gap-2.5">
                           <div className="flex items-center gap-2.5">
@@ -250,16 +250,16 @@ export function Header() {
                               <MessageSquare className="h-4 w-4 text-blue-500" />
                             </div>
                             <span className="text-sm font-medium text-foreground group-hover:text-primary transition-colors">
-                              Context Storage
+                              Short-term Memory
                             </span>
                           </div>
                           <ArrowRight className="h-3.5 w-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
                         </div>
                       </Link>
                       <Link
-                        href="/product/context-observability"
+                        href="/product/mid-term-state"
                         className="block px-3 py-1 hover:bg-muted/50 transition-colors group"
-                        aria-label="Go to Context Observability page"
+                        aria-label="Go to Mid-term State page"
                       >
                         <div className="flex items-center justify-between gap-2.5">
                           <div className="flex items-center gap-2.5">
@@ -267,16 +267,16 @@ export function Header() {
                               <BarChart3 className="h-4 w-4 text-indigo-500" />
                             </div>
                             <span className="text-sm font-medium text-foreground group-hover:text-primary transition-colors">
-                              Context Observability
+                              Mid-term State
                             </span>
                           </div>
                           <ArrowRight className="h-3.5 w-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
                         </div>
                       </Link>
                       <Link
-                        href="/product/skill-memory"
+                        href="/product/long-term-skill"
                         className="block px-3 py-1 hover:bg-muted/50 transition-colors group"
-                        aria-label="Go to Skill Memory page"
+                        aria-label="Go to Long-term Skill page"
                       >
                         <div className="flex items-center justify-between gap-2.5">
                           <div className="flex items-center gap-2.5">
@@ -284,7 +284,7 @@ export function Header() {
                               <Brain className="h-4 w-4 text-pink-500" />
                             </div>
                             <span className="text-sm font-medium text-foreground group-hover:text-primary transition-colors">
-                              Skill Memory
+                              Long-term Skill
                             </span>
                           </div>
                           <ArrowRight className="h-3.5 w-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
@@ -769,19 +769,19 @@ export function Header() {
           <div className="flex h-full max-h-full flex-col overflow-y-auto px-3 pb-40">
             <nav className="w-full space-y-0">
               <Link
-                href="/product/context-storage"
+                href="/product/short-term-memory"
                 onClick={handleMobileLinkClick}
                 className={cn(
                   'group outline-none w-full',
-                  pathname === '/product/context-storage' && 'text-primary',
+                  pathname === '/product/short-term-memory' && 'text-primary',
                 )}
-                aria-label="Go to Context Storage page"
+                aria-label="Go to Short-term Memory page"
               >
                 <div className="flex gap-x-1 text-center font-sans transition justify-center items-center shrink-0 select-none group-focus:outline-none group-disabled:opacity-75 group-disabled:pointer-events-none disabled:opacity-50 text-xs border-b border-border py-3 w-full">
                   <div className="w-full transition">
                     <span className="flex w-full items-center justify-between">
                       <span className="flex items-center gap-x-0.5 text-base font-normal text-foreground">
-                        Context Storage
+                        Short-term Memory
                       </span>
                       <MessageSquare className="size-5 opacity-50" />
                     </span>
@@ -789,19 +789,19 @@ export function Header() {
                 </div>
               </Link>
               <Link
-                href="/product/context-observability"
+                href="/product/mid-term-state"
                 onClick={handleMobileLinkClick}
                 className={cn(
                   'group outline-none w-full',
-                  pathname === '/product/context-observability' && 'text-primary',
+                  pathname === '/product/mid-term-state' && 'text-primary',
                 )}
-                aria-label="Go to Context Observability page"
+                aria-label="Go to Mid-term State page"
               >
                 <div className="flex gap-x-1 text-center font-sans transition justify-center items-center shrink-0 select-none group-focus:outline-none group-disabled:opacity-75 group-disabled:pointer-events-none disabled:opacity-50 text-xs border-b border-border py-3 w-full">
                   <div className="w-full transition">
                     <span className="flex w-full items-center justify-between">
                       <span className="flex items-center gap-x-0.5 text-base font-normal text-foreground">
-                        Context Observability
+                        Mid-term State
                       </span>
                       <BarChart3 className="size-5 opacity-50" />
                     </span>
@@ -809,19 +809,19 @@ export function Header() {
                 </div>
               </Link>
               <Link
-                href="/product/skill-memory"
+                href="/product/long-term-skill"
                 onClick={handleMobileLinkClick}
                 className={cn(
                   'group outline-none w-full',
-                  pathname === '/product/skill-memory' && 'text-primary',
+                  pathname === '/product/long-term-skill' && 'text-primary',
                 )}
-                aria-label="Go to Skill Memory page"
+                aria-label="Go to Long-term Skill page"
               >
                 <div className="flex gap-x-1 text-center font-sans transition justify-center items-center shrink-0 select-none group-focus:outline-none group-disabled:opacity-75 group-disabled:pointer-events-none disabled:opacity-50 text-xs border-b border-border py-3 w-full">
                   <div className="w-full transition">
                     <span className="flex w-full items-center justify-between">
                       <span className="flex items-center gap-x-0.5 text-base font-normal text-foreground">
-                        Skill Memory
+                        Long-term Skill
                       </span>
                       <Brain className="size-5 opacity-50" />
                     </span>

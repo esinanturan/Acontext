@@ -23,17 +23,7 @@
             ]
           },
           {
-            "group": "Skill Memory",
-            "icon": "brain",
-            "pages": [
-              "learn/skill-memory",
-              "learn/quick",
-              "learn/custom-memory",
-              "learn/learning-spaces"
-            ]
-          },
-          {
-            "group": "Context Storage",
+            "group": "Short-term Memory",
             "icon": "database",
             "pages": [
               "store/overview",
@@ -60,30 +50,24 @@
                   "store/disk",
                   "store/skill",
                   "store/sandbox",
-                  "store/per-user"
+                  "store/per-user",
+                  {
+                    "group": "Context Engineering",
+                    "pages": [
+                      "engineering/whatis",
+                      "engineering/agent_skills",
+                      "engineering/session_summary",
+                      "engineering/editing",
+                      "engineering/cache",
+                      "engineering/copy_session"
+                    ]
+                  }
                 ]
               }
             ]
           },
           {
-            "group": "Context Engineering",
-            "icon": "scissors",
-            "pages": [
-              "engineering/whatis",
-              {
-                "group": "Features",
-                "pages": [
-                  "engineering/agent_skills",
-                  "engineering/session_summary",
-                  "engineering/editing",
-                  "engineering/cache",
-                  "engineering/copy_session"
-                ]
-              }
-            ]
-          },
-          {
-            "group": "Agent Observability",
+            "group": "Mid-term State",
             "icon": "radar",
             "pages": [
               "observe/whatis",
@@ -95,6 +79,21 @@
                   "observe/disable_tasks",
                   "observe/dashboard",
                   "observe/traces"
+                ]
+              }
+            ]
+          },
+          {
+            "group": "Long-term Skill",
+            "icon": "brain",
+            "pages": [
+              "learn/skill-memory",
+              {
+                "group": "Features",
+                "pages": [
+                  "learn/quick",
+                  "learn/custom-memory",
+                  "learn/learning-spaces"
                 ]
               }
             ]

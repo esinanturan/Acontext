@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'motion/react'
-import { Database, Sparkles, Layers, Activity, HardDrive, ArrowRight, Check, Copy } from 'lucide-react'
+import { Database, Sparkles, Activity, ArrowRight, Check, Copy } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { HighlightedCode } from '@/components/ui/highlighted-code'
 
@@ -29,68 +29,8 @@ interface Tab {
 
 const TABS: Tab[] = [
   {
-    id: 'skill-memory',
-    label: 'Skill Memory',
-    Icon: Sparkles,
-    dotColor: 'bg-emerald-400',
-    headerDotColor: 'bg-emerald-500/60',
-    activeColor: 'border-emerald-500 text-emerald-400',
-    description:
-      'Agents learn from every session. Skills are plain markdown you can read, edit, and version.',
-    docsUrl: 'https://docs.acontext.app/learn/quick',
-    snippets: {
-      python: {
-        filename: 'learn.py',
-        language: 'python',
-        install: 'pip install acontext',
-        code: `from acontext import AcontextClient
-
-client = AcontextClient()
-
-# 1. Create a learning space
-space = client.learning_spaces.create()
-
-# 2. Attach a session — your agent runs as usual
-session = client.sessions.create()
-client.learning_spaces.learn(space.id, session_id=session.id)
-
-# ... agent stores messages during its run ...
-
-# 3. View learned skills (plain markdown, human-readable)
-skills = client.learning_spaces.list_skills(space.id)
-for skill in skills:
-    print(f"{skill.name}: {skill.description}")`,
-      },
-      typescript: {
-        filename: 'learn.ts',
-        language: 'typescript',
-        install: 'npm install @acontext/acontext',
-        code: `import { AcontextClient } from "@acontext/acontext"
-
-const client = new AcontextClient()
-
-// 1. Create a learning space
-const space = await client.learningSpaces.create()
-
-// 2. Attach a session — your agent runs as usual
-const session = await client.sessions.create()
-await client.learningSpaces.learn({
-  spaceId: space.id, sessionId: session.id
-})
-
-// ... agent stores messages during its run ...
-
-// 3. View learned skills (plain markdown, human-readable)
-const skills = await client.learningSpaces.listSkills(space.id)
-for (const skill of skills) {
-  console.log(\`\${skill.name}: \${skill.description}\`)
-}`,
-      },
-    },
-  },
-  {
-    id: 'context-storage',
-    label: 'Context Storage',
+    id: 'short-term-memory',
+    label: 'Short-term Memory',
     Icon: Database,
     dotColor: 'bg-blue-400',
     headerDotColor: 'bg-blue-500/60',
@@ -105,7 +45,7 @@ for (const skill of skills) {
         install: 'pip install acontext',
         code: `from acontext import AcontextClient
 
-client = AcontextClient()
+client = AcontextClient(api_key="sk-ac-...")
 
 # Create a session
 session = client.sessions.create()
@@ -127,7 +67,7 @@ messages = client.sessions.get_messages(
         install: 'npm install @acontext/acontext',
         code: `import { AcontextClient } from "@acontext/acontext"
 
-const client = new AcontextClient()
+const client = new AcontextClient({ apiKey: "sk-ac-..." })
 
 // Create a session
 const session = await client.sessions.create()
@@ -145,139 +85,8 @@ const messages = await client.sessions.getMessages(
     },
   },
   {
-    id: 'context-engineering',
-    label: 'Context Engineering',
-    Icon: Layers,
-    dotColor: 'bg-violet-400',
-    headerDotColor: 'bg-violet-500/60',
-    activeColor: 'border-violet-500 text-violet-400',
-    description:
-      'Edit, compress, and trim context on-the-fly — without modifying stored messages.',
-    docsUrl: 'https://docs.acontext.app/engineering/editing',
-    snippets: {
-      python: {
-        filename: 'engineer.py',
-        language: 'python',
-        install: 'pip install acontext',
-        code: `from acontext import AcontextClient
-
-client = AcontextClient()
-session = client.sessions.create()
-
-# ... store messages during your agent run ...
-
-# Apply edit strategies to manage context window
-result = client.sessions.get_messages(
-    session.id,
-    edit_strategies=[
-        {"type": "remove_tool_result",
-         "params": {"keep_recent_n_tool_results": 3}},
-        {"type": "token_limit",
-         "params": {"limit_tokens": 30000}}
-    ]
-)
-print(f"Tokens: {result.this_time_tokens}")`,
-      },
-      typescript: {
-        filename: 'engineer.ts',
-        language: 'typescript',
-        install: 'npm install @acontext/acontext',
-        code: `import { AcontextClient } from "@acontext/acontext"
-
-const client = new AcontextClient()
-const session = await client.sessions.create()
-
-// ... store messages during your agent run ...
-
-// Apply edit strategies to manage context window
-const result = await client.sessions.getMessages(session.id, {
-  editStrategies: [
-    { type: "remove_tool_result",
-      params: { keep_recent_n_tool_results: 3 } },
-    { type: "token_limit",
-      params: { limit_tokens: 30000 } },
-  ],
-})
-console.log(\`Tokens: \${result.this_time_tokens}\`)`,
-      },
-    },
-  },
-  {
-    id: 'filesystem',
-    label: 'Filesystem',
-    Icon: HardDrive,
-    dotColor: 'bg-rose-400',
-    headerDotColor: 'bg-rose-500/60',
-    activeColor: 'border-rose-500 text-rose-400',
-    description:
-      'S3-backed file storage with paths, metadata, and secure download URLs for your agent.',
-    docsUrl: 'https://docs.acontext.app/store/disk',
-    snippets: {
-      python: {
-        filename: 'disk.py',
-        language: 'python',
-        install: 'pip install acontext',
-        code: `from acontext import AcontextClient, FileUpload
-
-client = AcontextClient()
-
-# Create a disk and upload a file
-disk = client.disks.create()
-client.disks.artifacts.upsert(
-    disk.id,
-    file=FileUpload(filename="notes.md", content=b"# Meeting Notes"),
-    file_path="/docs/",
-    meta={"author": "alice"}
-)
-
-# List and search files
-files = client.disks.artifacts.list(disk.id, path="/docs/")
-results = client.disks.artifacts.glob_artifacts(disk.id, query="**/*.md")
-
-# Get file with a secure download URL
-artifact = client.disks.artifacts.get(
-    disk.id, file_path="/docs/", filename="notes.md",
-    with_public_url=True
-)
-print(artifact.public_url)`,
-      },
-      typescript: {
-        filename: 'disk.ts',
-        language: 'typescript',
-        install: 'npm install @acontext/acontext',
-        code: `import { AcontextClient, FileUpload } from "@acontext/acontext"
-
-const client = new AcontextClient()
-
-// Create a disk and upload a file
-const disk = await client.disks.create()
-await client.disks.artifacts.upsert(disk.id, {
-  file: new FileUpload({
-    filename: "notes.md",
-    content: Buffer.from("# Meeting Notes"),
-  }),
-  filePath: "/docs/",
-  meta: { author: "alice" },
-})
-
-// List and search files
-const files = await client.disks.artifacts.list(disk.id, { path: "/docs/" })
-const results = await client.disks.artifacts.globArtifacts(disk.id, {
-  query: "**/*.md",
-})
-
-// Get file with a secure download URL
-const artifact = await client.disks.artifacts.get(disk.id, {
-  filePath: "/docs/", filename: "notes.md",
-  withPublicUrl: true,
-})
-console.log(artifact.publicUrl)`,
-      },
-    },
-  },
-  {
-    id: 'context-observability',
-    label: 'Observability',
+    id: 'mid-term-state',
+    label: 'Mid-term State',
     Icon: Activity,
     dotColor: 'bg-amber-400',
     headerDotColor: 'bg-amber-500/60',
@@ -292,7 +101,7 @@ console.log(artifact.publicUrl)`,
         install: 'pip install acontext',
         code: `from acontext import AcontextClient
 
-client = AcontextClient()
+client = AcontextClient(api_key="sk-ac-...")
 
 # Get auto-extracted tasks from a session
 tasks = client.sessions.get_tasks(session.id)
@@ -311,7 +120,7 @@ system_prompt = f"Previous context:\\n{summary}"`,
         install: 'npm install @acontext/acontext',
         code: `import { AcontextClient } from "@acontext/acontext"
 
-const client = new AcontextClient()
+const client = new AcontextClient({ apiKey: "sk-ac-..." })
 
 // Get auto-extracted tasks from a session
 const tasks = await client.sessions.getTasks(session.id)
@@ -324,6 +133,66 @@ const summary = await client.sessions.getSessionSummary(
   session.id, { limit: 5 }
 )
 const systemPrompt = \`Previous context:\\n\${summary}\``,
+      },
+    },
+  },
+  {
+    id: 'long-term-skill',
+    label: 'Long-term Skill',
+    Icon: Sparkles,
+    dotColor: 'bg-emerald-400',
+    headerDotColor: 'bg-emerald-500/60',
+    activeColor: 'border-emerald-500 text-emerald-400',
+    description:
+      'Agents learn from every session. Skills are plain markdown you can read, edit, and version.',
+    docsUrl: 'https://docs.acontext.app/learn/quick',
+    snippets: {
+      python: {
+        filename: 'learn.py',
+        language: 'python',
+        install: 'pip install acontext',
+        code: `from acontext import AcontextClient
+
+client = AcontextClient(api_key="sk-ac-...")
+
+# 1. Create a learning space
+space = client.learning_spaces.create()
+
+# 2. Attach a session — your agent runs as usual
+session = client.sessions.create()
+client.learning_spaces.learn(space.id, session_id=session.id)
+
+# ... agent stores messages during its run ...
+
+# 3. View learned skills (plain markdown, human-readable)
+skills = client.learning_spaces.list_skills(space.id)
+for skill in skills:
+    print(f"{skill.name}: {skill.description}")`,
+      },
+      typescript: {
+        filename: 'learn.ts',
+        language: 'typescript',
+        install: 'npm install @acontext/acontext',
+        code: `import { AcontextClient } from "@acontext/acontext"
+
+const client = new AcontextClient({ apiKey: "sk-ac-..." })
+
+// 1. Create a learning space
+const space = await client.learningSpaces.create()
+
+// 2. Attach a session — your agent runs as usual
+const session = await client.sessions.create()
+await client.learningSpaces.learn({
+  spaceId: space.id, sessionId: session.id
+})
+
+// ... agent stores messages during its run ...
+
+// 3. View learned skills (plain markdown, human-readable)
+const skills = await client.learningSpaces.listSkills(space.id)
+for (const skill of skills) {
+  console.log(\`\${skill.name}: \${skill.description}\`)
+}`,
       },
     },
   },
@@ -375,6 +244,16 @@ export function Quickstart() {
             Get Started in Minutes
           </h2>
           <p className="text-sm sm:text-base text-muted-foreground max-w-lg mx-auto">
+            An{' '}
+            <a
+              href="https://dash.acontext.io"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-medium text-primary hover:text-primary/80 transition-colors underline underline-offset-2"
+            >
+              Acontext API key
+            </a>
+            {' '}and{' '}
             <code className="text-xs sm:text-sm font-mono bg-muted/50 px-2 py-0.5 rounded border border-border/50">
               {snippet.install}
             </code>

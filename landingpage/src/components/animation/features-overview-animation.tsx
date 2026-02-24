@@ -248,7 +248,7 @@ export function FeaturesOverviewAnimation() {
         )
         .to('[data-scene="1"]', { opacity: 0, duration: 0.3 }, 7.7)
 
-      // SCENE 2: Context Storage (8-20s) - Extended duration
+      // SCENE 2: Short-term Memory (8-20s) - Extended duration
       const scene2 = gsap.timeline()
       scene2
         .to('[data-scene="2"]', { opacity: 1, duration: 0.3 }, 0)
@@ -836,7 +836,7 @@ export function FeaturesOverviewAnimation() {
                       transform: 'translateY(-10px)',
                     }}
                   >
-                    Skill Memory Platform for AI Agents
+                    The Agent Memory Stack
                   </p>
 
                   <div className="flex gap-8 justify-center items-center">
@@ -844,7 +844,7 @@ export function FeaturesOverviewAnimation() {
                       dataPillar="store"
                       icon="💾"
                       title="Store"
-                      description="Context storage & editing"
+                      description="Short-term memory & editing"
                       color={colors.primary}
                     />
                     <Pillar
@@ -858,14 +858,14 @@ export function FeaturesOverviewAnimation() {
                       dataPillar="learn"
                       icon="🧠"
                       title="Learn"
-                      description="Skill memory"
+                      description="Long-term skill"
                       color={colors.accent}
                     />
                   </div>
                 </div>
               </Scene>
 
-              {/* SCENE 2: Context Storage */}
+              {/* SCENE 2: Short-term Memory */}
               <Scene scene="2">
                 <div className="flex flex-col items-center justify-start w-full px-12 pt-8">
                   <h3
@@ -877,7 +877,7 @@ export function FeaturesOverviewAnimation() {
                       transform: 'translateY(-20px)',
                     }}
                   >
-                    Context Storage Architecture
+                    Short-term Memory Architecture
                   </h3>
 
                   <div className="grid grid-cols-2 gap-6 w-full max-w-5xl mb-6">
@@ -1020,7 +1020,7 @@ export function FeaturesOverviewAnimation() {
                       transform: 'translateY(-20px)',
                     }}
                   >
-                    Task Monitoring & Observability
+                    Task Monitoring & Mid-term State
                   </h3>
 
                   <div className="grid grid-cols-2 gap-6 w-full max-w-5xl mb-6">
@@ -1081,7 +1081,7 @@ export function FeaturesOverviewAnimation() {
                       transform: 'translateY(-20px)',
                     }}
                   >
-                    Skill Memory
+                    Long-term Skill
                   </h3>
 
                   <div className="grid grid-cols-2 gap-6 w-full max-w-5xl mb-6">

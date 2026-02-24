@@ -140,7 +140,7 @@ export function Comparison() {
         <div className="text-center space-y-4 mb-12">
           <h2 className="text-3xl sm:text-4xl font-bold">How It Compares</h2>
           <p className="text-muted-foreground max-w-2xl mx-auto">
-            See how Acontext Context Storage compares to building it yourself or using other
+            See how Acontext Short-term Memory compares to building it yourself or using other
             frameworks.
           </p>
         </div>

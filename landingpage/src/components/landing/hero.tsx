@@ -155,13 +155,13 @@ export function Hero() {
           style={{ transformStyle: 'preserve-3d' }}
         >
           <p className="text-lg sm:text-xl text-muted-foreground hero-tagline">
-            Skill Memory Platform for AI Agents
+            Store, Observe, Learn
           </p>
           <h1
             ref={titleRef}
             className="text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-bold tracking-tight hero-title will-change-transform"
           >
-            <span className="hero-text-gradient cursor-default">Store, Observe, Learn</span>
+            <span className="hero-text-gradient cursor-default">The Agent Memory Stack</span>
           </h1>
         </div>
 
@@ -171,27 +171,27 @@ export function Hero() {
           className="max-w-3xl mx-auto space-y-3 sm:space-y-4 animate-fade-in animation-delay-600 px-2 sm:px-0 will-change-transform"
         >
           <p className="text-sm sm:text-base md:text-lg text-muted-foreground leading-relaxed">
-            Think of it as Supabase for agent context — with skill-based memory your agents build and humans can actually read.
+            Think of it as Supabase for agent memory.
           </p>
           <div className="flex flex-wrap items-center justify-center gap-x-2 sm:gap-x-3 gap-y-2 text-xs sm:text-sm md:text-base text-muted-foreground/80">
-            <Link href="/product/context-storage" className="px-2 sm:px-3 py-1 sm:py-1.5 rounded-md bg-muted/50 border border-border/50 transition-all duration-200 hover:bg-muted/80 hover:border-foreground/40 hover:text-foreground/90">
-              Context Storage
+            <Link href="/product/short-term-memory" className="px-2 sm:px-3 py-1 sm:py-1.5 rounded-md bg-muted/50 border border-border/50 transition-all duration-200 hover:bg-muted/80 hover:border-foreground/40 hover:text-foreground/90">
+              Short-term Memory
             </Link>
             <span className="text-muted-foreground/40 hidden sm:inline">·</span>
-            <Link href="/product/context-observability" className="px-2 sm:px-3 py-1 sm:py-1.5 rounded-md bg-muted/50 border border-border/50 transition-all duration-200 hover:bg-muted/80 hover:border-foreground/40 hover:text-foreground/90">
-              Context Observability
+            <Link href="/product/mid-term-state" className="px-2 sm:px-3 py-1 sm:py-1.5 rounded-md bg-muted/50 border border-border/50 transition-all duration-200 hover:bg-muted/80 hover:border-foreground/40 hover:text-foreground/90">
+              Mid-term State
             </Link>
             <span className="text-muted-foreground/40 hidden sm:inline">·</span>
-            <Link href="/product/skill-memory" className="px-2 sm:px-3 py-1 sm:py-1.5 rounded-md bg-muted/50 border border-border/50 transition-all duration-200 hover:bg-muted/80 hover:border-foreground/40 hover:text-foreground/90">
-              Skill Memory
+            <Link href="/product/long-term-skill" className="px-2 sm:px-3 py-1 sm:py-1.5 rounded-md bg-muted/50 border border-border/50 transition-all duration-200 hover:bg-muted/80 hover:border-foreground/40 hover:text-foreground/90">
+              Long-term Skill
             </Link>
           </div>
           <p className="text-xs sm:text-sm md:text-base text-muted-foreground/70 leading-relaxed max-w-2xl mx-auto">
             Scale from local demos to production without rebuilding context infrastructure —{' '}
             <span className="font-medium text-foreground/90 sm:whitespace-nowrap">
-              skill-based memory
+              a three-layer memory stack
             </span>{' '}
-            that&apos;s filesystem-compatible, configurable, and human-readable.
+            that cover anything your agents need to remember.
           </p>
         </div>
 

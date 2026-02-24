@@ -1,16 +1,16 @@
 import Script from 'next/script'
 import type { Metadata } from 'next'
-import { Hero, Comparison, Advantages, HowItWorks } from '@/components/skill-memory'
+import { Hero, Comparison, Advantages, HowItWorks } from '@/components/long-term-skill'
 import { createSoftwareApplicationJsonLd, generateJsonLdScript } from '@/lib/jsonld'
 
 const baseUrl = process.env.NEXT_PUBLIC_SERVER_URL || 'https://acontext.io'
 
 export const metadata: Metadata = {
-  title: 'Skill Memory - Agent Memory as Skills | Acontext',
+  title: 'Long-term Skill - Agent Memory as Skills | Acontext',
   description:
     'Agent memory stored as skills — filesystem-compatible, configurable, and human-readable. No opaque embeddings. No vendor lock-in.',
   keywords: [
-    'skill memory',
+    'long-term skill',
     'agent memory',
     'AI agent',
     'filesystem memory',
@@ -18,29 +18,29 @@ export const metadata: Metadata = {
     'open source',
   ],
   openGraph: {
-    title: 'Skill Memory - Agent Memory as Skills | Acontext',
+    title: 'Long-term Skill - Agent Memory as Skills | Acontext',
     description:
       'Agent memory stored as skills — filesystem-compatible, configurable, and human-readable.',
-    url: `${baseUrl}/product/skill-memory`,
+    url: `${baseUrl}/product/long-term-skill`,
     siteName: 'Acontext',
     type: 'website',
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Skill Memory - Agent Memory as Skills | Acontext',
+    title: 'Long-term Skill - Agent Memory as Skills | Acontext',
     description:
       'Agent memory stored as skills — filesystem-compatible, configurable, and human-readable.',
   },
   alternates: {
-    canonical: `${baseUrl}/product/skill-memory`,
+    canonical: `${baseUrl}/product/long-term-skill`,
   },
 }
 
-export default function SkillMemoryPage() {
-  const skillMemoryJsonLd = createSoftwareApplicationJsonLd(
-    'Acontext Skill Memory',
-    'Skill memory for AI agents — store agent memory as filesystem-compatible, configurable, human-readable skill files.',
-    `${baseUrl}/product/skill-memory`,
+export default function LongTermSkillPage() {
+  const longTermSkillJsonLd = createSoftwareApplicationJsonLd(
+    'Acontext Long-term Skill',
+    'Long-term skill for AI agents — store agent memory as filesystem-compatible, configurable, human-readable skill files.',
+    `${baseUrl}/product/long-term-skill`,
     {
       applicationCategory: 'DeveloperApplication',
       operatingSystem: 'Any',
@@ -52,10 +52,10 @@ export default function SkillMemoryPage() {
   return (
     <>
       <Script
-        id="skill-memory-jsonld"
+        id="long-term-skill-jsonld"
         type="application/ld+json"
         dangerouslySetInnerHTML={{
-          __html: generateJsonLdScript(skillMemoryJsonLd),
+          __html: generateJsonLdScript(longTermSkillJsonLd),
         }}
       />
       <Hero />
