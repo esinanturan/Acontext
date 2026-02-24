@@ -262,8 +262,7 @@ Learning is asynchronous. After the session's tasks complete, the learner reads 
 
 <CodeGroup>
 ```python Python
-import time
-time.sleep(30)
+client.learning_spaces.wait_for_learning(space.id, session_id=session.id)
 
 skills = client.learning_spaces.list_skills(space.id)
 for s in skills:
@@ -277,7 +276,7 @@ for s in skills:
 ```
 
 ```typescript TypeScript
-await new Promise(resolve => setTimeout(resolve, 30000));
+await client.learningSpaces.waitForLearning({ spaceId: space.id, sessionId: session.id });
 
 const updatedSkills = await client.learningSpaces.listSkills(space.id);
 for (const s of updatedSkills) {
@@ -325,7 +324,7 @@ Expected output — files created by the learner following your SKILL.md rules:
 <AccordionGroup>
 <Accordion title="Python — complete runnable script">
 ```python
-import os, time, zipfile, io
+import os, zipfile, io
 from acontext import AcontextClient, FileUpload
 
 client = AcontextClient(api_key=os.getenv("ACONTEXT_API_KEY"))
@@ -385,7 +384,7 @@ for msg in messages:
     client.sessions.store_message(session.id, blob=msg)
 
 # 4. Wait for learning pipeline, then inspect results
-time.sleep(30)
+client.learning_spaces.wait_for_learning(space.id, session_id=session.id)
 
 skills = client.learning_spaces.list_skills(space.id)
 for s in skills:
@@ -464,7 +463,7 @@ for (const msg of messages) {
 }
 
 // 4. Wait for learning pipeline, then inspect results
-await new Promise(resolve => setTimeout(resolve, 30000));
+await client.learningSpaces.waitForLearning({ spaceId: space.id, sessionId: session.id });
 
 const updatedSkills = await client.learningSpaces.listSkills(space.id);
 for (const s of updatedSkills) {

@@ -166,15 +166,19 @@ client.sessions.store_message(
 # ... your agent runs ...
 msgs = client.sessions.get_messages(session_id=session.id)
 
-# 2. Mid-term State — get extracted tasks, progress, and summaries
+# 2. Mid-term State — flush to trigger processing, then get state
+client.sessions.flush(session.id)
 summary = client.sessions.get_session_summary(session_id=session.id)
 print(summary)
 
-# 3. Long-term Skill — retrieve skills the agent learned
+# 3. Long-term Skill — wait for learning, then retrieve skills
+client.learning_spaces.wait_for_learning(space.id, session_id=session.id)
 skills = client.learning_spaces.list_skills(space.id)
 for skill in skills:
     print(f"{skill.name}: {skill.description}")
 ```
+
+> `flush` and `wait_for_learning` are blocking helpers for demo purposes. In production, task extraction and learning run in the background automatically — your agent never waits.
 
 ### More Features
 

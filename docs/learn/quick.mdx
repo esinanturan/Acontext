@@ -54,24 +54,28 @@ Call `.learn()` before the agent runs. When tasks complete during the session, A
 
 <Step title="Learning happens automatically">
 
-As tasks complete, Acontext distills outcomes into skill files in the background. Track progress:
+As tasks complete, Acontext distills outcomes into skill files in the background. Use `wait_for_learning` to block until it finishes:
 
 <CodeGroup>
 ```python Python
-sessions = client.learning_spaces.list_sessions(space.id)
-for s in sessions:
-    print(f"Session {s.session_id}: {s.status}")
-    # pending → running → completed
+result = client.learning_spaces.wait_for_learning(space.id, session_id=session.id)
+print(f"Session {result.session_id}: {result.status}")
+# "completed" or "failed"
 ```
 
 ```typescript TypeScript
-const sessions = await client.learningSpaces.listSessions(space.id);
-for (const s of sessions) {
-    console.log(`Session ${s.sessionId}: ${s.status}`);
-    // pending → running → completed
-}
+const result = await client.learningSpaces.waitForLearning({
+    spaceId: space.id,
+    sessionId: session.id,
+});
+console.log(`Session ${result.session_id}: ${result.status}`);
+// "completed" or "failed"
 ```
 </CodeGroup>
+
+<Tip>
+`wait_for_learning` / `waitForLearning` polls every 1 second (configurable via `poll_interval` / `pollInterval`) and times out after 120 seconds by default (configurable via `timeout`).
+</Tip>
 </Step>
 
 <Step title="Inspect the learned skills">
@@ -80,6 +84,9 @@ Skills are plain markdown files you can read directly:
 
 <CodeGroup>
 ```python Python
+# Ensure learning has finished (called in Step 2, repeated here for completeness)
+client.learning_spaces.wait_for_learning(space.id, session_id=session.id)
+
 skills = client.learning_spaces.list_skills(space.id)
 for skill in skills:
     print(f"\n=== {skill.name} ===")
@@ -92,6 +99,9 @@ for skill in skills:
 ```
 
 ```typescript TypeScript
+// Ensure learning has finished (called in Step 2, repeated here for completeness)
+await client.learningSpaces.waitForLearning({ spaceId: space.id, sessionId: session.id });
+
 const skills = await client.learningSpaces.listSkills(space.id);
 for (const skill of skills) {
     console.log(`\n=== ${skill.name} ===`);

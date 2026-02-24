@@ -103,6 +103,10 @@ const messages = await client.sessions.getMessages(
 
 client = AcontextClient(api_key="sk-ac-...")
 
+# Flush to trigger task extraction (demo only —
+# in production this runs in the background)
+client.sessions.flush(session.id)
+
 # Get auto-extracted tasks from a session
 tasks = client.sessions.get_tasks(session.id)
 for task in tasks.items:
@@ -122,10 +126,14 @@ system_prompt = f"Previous context:\\n{summary}"`,
 
 const client = new AcontextClient({ apiKey: "sk-ac-..." })
 
+// Flush to trigger task extraction (demo only —
+// in production this runs in the background)
+await client.sessions.flush(session.id)
+
 // Get auto-extracted tasks from a session
 const tasks = await client.sessions.getTasks(session.id)
 for (const task of tasks.items) {
-  console.log(\`#\${task.order}: \${task.data.taskDescription} [\${task.status}]\`)
+  console.log(\`#\${task.order}: \${task.data.task_description} [\${task.status}]\`)
 }
 
 // Get a token-efficient session summary
@@ -164,7 +172,11 @@ client.learning_spaces.learn(space.id, session_id=session.id)
 
 # ... agent stores messages during its run ...
 
-# 3. View learned skills (plain markdown, human-readable)
+# 3. Wait for learning, then view learned skills
+# (demo only — in production this runs in the background)
+client.learning_spaces.wait_for_learning(
+    space.id, session_id=session.id
+)
 skills = client.learning_spaces.list_skills(space.id)
 for skill in skills:
     print(f"{skill.name}: {skill.description}")`,
@@ -188,7 +200,11 @@ await client.learningSpaces.learn({
 
 // ... agent stores messages during its run ...
 
-// 3. View learned skills (plain markdown, human-readable)
+// 3. Wait for learning, then view learned skills
+// (demo only — in production this runs in the background)
+await client.learningSpaces.waitForLearning({
+  spaceId: space.id, sessionId: session.id
+})
 const skills = await client.learningSpaces.listSkills(space.id)
 for (const skill of skills) {
   console.log(\`\${skill.name}: \${skill.description}\`)

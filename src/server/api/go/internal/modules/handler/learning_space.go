@@ -458,6 +458,48 @@ func (h *LearningSpaceHandler) ExcludeSkill(c *gin.Context) {
 	c.JSON(http.StatusOK, serializer.Response{Msg: "ok"})
 }
 
+// GetSession godoc
+//
+//	@Summary		Get session in space
+//	@Description	Get a single learning session record by session ID within a learning space.
+//	@Tags			LearningSpaces
+//	@Accept			json
+//	@Produce		json
+//	@Param			id			path	string	true	"Learning space UUID"
+//	@Param			session_id	path	string	true	"Session UUID"
+//	@Security		BearerAuth
+//	@Success		200	{object}	serializer.Response{data=model.LearningSpaceSession}
+//	@Failure		400	{object}	serializer.Response
+//	@Failure		404	{object}	serializer.Response
+//	@Router			/learning_spaces/{id}/sessions/{session_id} [get]
+func (h *LearningSpaceHandler) GetSession(c *gin.Context) {
+	project, ok := c.MustGet("project").(*model.Project)
+	if !ok {
+		c.JSON(http.StatusBadRequest, serializer.ParamErr("", errors.New("project not found")))
+		return
+	}
+
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, serializer.ParamErr("", errors.New("invalid id")))
+		return
+	}
+
+	sessionID, err := uuid.Parse(c.Param("session_id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, serializer.ParamErr("", errors.New("invalid session_id")))
+		return
+	}
+
+	session, err := h.svc.GetSession(c.Request.Context(), project.ID, id, sessionID)
+	if err != nil {
+		h.handleErr(c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, serializer.Response{Data: session})
+}
+
 // ListSessions godoc
 //
 //	@Summary		List sessions in space
