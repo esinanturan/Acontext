@@ -46,7 +46,7 @@ Unifies **short-term memory, mid-term state, and long-term skill** for productio
 - **Long-term Skill** — agents distill successful/failed task outcomes into reusable, human-readable skill files, improving with every run
 
 <div align="center">
-      <img alt="Acontext - The Agent Memory Stack" src="./assets/acontext-components.png">  
+      <img alt="Acontext Memory Stack — Short-term, Mid-term, Long-term" src="./docs/images/memory-stack.svg" width="90%">  
 </div>
 
 
