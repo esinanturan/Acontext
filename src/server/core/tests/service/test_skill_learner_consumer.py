@@ -8,9 +8,15 @@ Covers:
 - Distillation consumer: publishes correct learning_space_id
 - Distillation consumer: does NOT publish when trivial task is skipped
 - Agent consumer: acquires lock and calls run_skill_agent
-- Agent consumer: lock contention → republishes same SkillLearnDistilled body
+- Agent consumer: lock contention → pushes to Redis pending list (not retry queue)
 - Agent consumer: lock released in finally (even on error)
 - Agent consumer: logs session_id and task_id for observability
+- Agent consumer: on success, marks initial + all drained sessions completed
+- Agent consumer: on agent Result.reject, only marks initial session failed
+- Agent consumer: session status set to "queued" when pushed to Redis
+- Agent consumer: on success with remaining Redis contexts, re-publishes to MQ
+- Agent consumer: on success with empty Redis, does NOT re-publish
+- Agent consumer: on agent failure, does NOT check Redis for retrigger
 - Controller: process_context_distillation error paths
 - Controller: process_context_distillation returns None for trivial tasks
 - Controller: run_skill_agent error paths
@@ -311,6 +317,8 @@ class TestAgentConsumer:
         body = _make_distilled_body()
         mock_message = MagicMock()
 
+        drained_ids = [uuid.uuid4(), uuid.uuid4()]
+
         with (
             patch("acontext_core.service.skill_learner.DB_CLIENT") as mock_db,
             patch(
@@ -329,8 +337,13 @@ class TestAgentConsumer:
             patch(
                 "acontext_core.service.skill_learner.SLC.run_skill_agent",
                 new_callable=AsyncMock,
-                return_value=Result.resolve(None),
+                return_value=Result.resolve(drained_ids),
             ) as mock_agent,
+            patch(
+                "acontext_core.service.skill_learner.drain_skill_learn_pending",
+                new_callable=AsyncMock,
+                return_value=[],
+            ),
         ):
             mock_db.get_session_context.return_value.__aenter__ = AsyncMock(
                 return_value=MagicMock()
@@ -346,43 +359,181 @@ class TestAgentConsumer:
                 body.learning_space_id,
                 body.distilled_context,
                 max_iterations=DEFAULT_CORE_CONFIG.skill_learn_agent_max_iterations,
+                lock_key=f"skill_learn.{body.learning_space_id}",
+                lock_ttl_seconds=DEFAULT_CORE_CONFIG.skill_learn_lock_ttl_seconds,
             )
             mock_release.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_lock_contention_republishes_same_body(self):
-        """Agent consumer republishes same SkillLearnDistilled body on lock contention."""
+    async def test_lock_contention_pushes_to_redis(self):
+        """Agent consumer pushes to Redis pending list on lock contention (not retry queue)."""
         body = _make_distilled_body()
         mock_message = MagicMock()
 
         with (
+            patch("acontext_core.service.skill_learner.DB_CLIENT") as mock_db,
             patch(
                 "acontext_core.service.skill_learner.check_redis_lock_or_set",
                 new_callable=AsyncMock,
                 return_value=False,
             ),
             patch(
-                "acontext_core.service.skill_learner.publish_mq",
+                "acontext_core.service.skill_learner.push_skill_learn_pending",
                 new_callable=AsyncMock,
-            ) as mock_publish,
+            ) as mock_push,
+            patch(
+                "acontext_core.service.skill_learner.LS.update_session_status",
+                new_callable=AsyncMock,
+            ) as mock_status,
             patch(
                 "acontext_core.service.skill_learner.SLC.run_skill_agent",
                 new_callable=AsyncMock,
             ) as mock_agent,
         ):
+            mock_db.get_session_context.return_value.__aenter__ = AsyncMock(
+                return_value=MagicMock()
+            )
+            mock_db.get_session_context.return_value.__aexit__ = AsyncMock(
+                return_value=False
+            )
+
             await process_skill_agent(body, mock_message)
 
             mock_agent.assert_not_called()
-            mock_publish.assert_called_once()
-            # Verify retry routing key
-            call_kwargs = mock_publish.call_args.kwargs
-            assert call_kwargs["routing_key"] == "learning.skill.agent.retry"
-            # Verify body is the same SkillLearnDistilled (not SkillLearnTask)
-            published_json = call_kwargs["body"]
-            restored = SkillLearnDistilled.model_validate_json(published_json)
-            assert restored.project_id == body.project_id
-            assert restored.learning_space_id == body.learning_space_id
-            assert restored.distilled_context == body.distilled_context
+            mock_push.assert_called_once_with(
+                body.project_id,
+                body.learning_space_id,
+                body.model_dump_json(),
+            )
+
+    @pytest.mark.asyncio
+    async def test_session_status_queued_when_pushed_to_redis(self):
+        """Session status is set to 'queued' when pushed to Redis pending list."""
+        body = _make_distilled_body()
+        mock_message = MagicMock()
+
+        with (
+            patch("acontext_core.service.skill_learner.DB_CLIENT") as mock_db,
+            patch(
+                "acontext_core.service.skill_learner.check_redis_lock_or_set",
+                new_callable=AsyncMock,
+                return_value=False,
+            ),
+            patch(
+                "acontext_core.service.skill_learner.push_skill_learn_pending",
+                new_callable=AsyncMock,
+            ),
+            patch(
+                "acontext_core.service.skill_learner.LS.update_session_status",
+                new_callable=AsyncMock,
+            ) as mock_status,
+        ):
+            mock_db.get_session_context.return_value.__aenter__ = AsyncMock(
+                return_value=MagicMock()
+            )
+            mock_db.get_session_context.return_value.__aexit__ = AsyncMock(
+                return_value=False
+            )
+
+            await process_skill_agent(body, mock_message)
+
+            mock_status.assert_called_once()
+            call_args = mock_status.call_args
+            assert call_args[0][1] == body.session_id
+            assert call_args[0][2] == "queued"
+
+    @pytest.mark.asyncio
+    async def test_success_marks_all_sessions_completed(self):
+        """On success, consumer marks initial + all drained session IDs as completed."""
+        body = _make_distilled_body()
+        mock_message = MagicMock()
+        drained_ids = [uuid.uuid4(), uuid.uuid4()]
+
+        with (
+            patch("acontext_core.service.skill_learner.DB_CLIENT") as mock_db,
+            patch(
+                "acontext_core.service.skill_learner.LS.update_session_status",
+                new_callable=AsyncMock,
+            ) as mock_status,
+            patch(
+                "acontext_core.service.skill_learner.check_redis_lock_or_set",
+                new_callable=AsyncMock,
+                return_value=True,
+            ),
+            patch(
+                "acontext_core.service.skill_learner.release_redis_lock",
+                new_callable=AsyncMock,
+            ),
+            patch(
+                "acontext_core.service.skill_learner.SLC.run_skill_agent",
+                new_callable=AsyncMock,
+                return_value=Result.resolve(drained_ids),
+            ),
+            patch(
+                "acontext_core.service.skill_learner.drain_skill_learn_pending",
+                new_callable=AsyncMock,
+                return_value=[],
+            ),
+        ):
+            mock_db.get_session_context.return_value.__aenter__ = AsyncMock(
+                return_value=MagicMock()
+            )
+            mock_db.get_session_context.return_value.__aexit__ = AsyncMock(
+                return_value=False
+            )
+
+            await process_skill_agent(body, mock_message)
+
+            completed_calls = [
+                c for c in mock_status.call_args_list
+                if c[0][2] == "completed"
+            ]
+            completed_session_ids = {c[0][1] for c in completed_calls}
+            expected = {body.session_id} | set(drained_ids)
+            assert completed_session_ids == expected
+
+    @pytest.mark.asyncio
+    async def test_agent_reject_marks_only_initial_failed(self):
+        """On agent Result.reject, only initial session marked failed (drained re-pushed by agent)."""
+        body = _make_distilled_body()
+        mock_message = MagicMock()
+
+        with (
+            patch("acontext_core.service.skill_learner.DB_CLIENT") as mock_db,
+            patch(
+                "acontext_core.service.skill_learner.LS.update_session_status",
+                new_callable=AsyncMock,
+            ) as mock_status,
+            patch(
+                "acontext_core.service.skill_learner.check_redis_lock_or_set",
+                new_callable=AsyncMock,
+                return_value=True,
+            ),
+            patch(
+                "acontext_core.service.skill_learner.release_redis_lock",
+                new_callable=AsyncMock,
+            ),
+            patch(
+                "acontext_core.service.skill_learner.SLC.run_skill_agent",
+                new_callable=AsyncMock,
+                return_value=Result.reject("Agent crashed"),
+            ),
+        ):
+            mock_db.get_session_context.return_value.__aenter__ = AsyncMock(
+                return_value=MagicMock()
+            )
+            mock_db.get_session_context.return_value.__aexit__ = AsyncMock(
+                return_value=False
+            )
+
+            await process_skill_agent(body, mock_message)
+
+            failed_calls = [
+                c for c in mock_status.call_args_list
+                if c[0][2] == "failed"
+            ]
+            assert len(failed_calls) == 1
+            assert failed_calls[0][0][1] == body.session_id
 
     @pytest.mark.asyncio
     async def test_lock_released_on_agent_error(self):
@@ -474,7 +625,12 @@ class TestAgentConsumer:
             patch(
                 "acontext_core.service.skill_learner.SLC.run_skill_agent",
                 new_callable=AsyncMock,
-                return_value=Result.resolve(None),
+                return_value=Result.resolve([]),
+            ),
+            patch(
+                "acontext_core.service.skill_learner.drain_skill_learn_pending",
+                new_callable=AsyncMock,
+                return_value=[],
             ),
         ):
             mock_db.get_session_context.return_value.__aenter__ = AsyncMock(
@@ -491,6 +647,150 @@ class TestAgentConsumer:
                 f"skill_learn.{ls_id}",
                 ttl_seconds=240,
             )
+
+    @pytest.mark.asyncio
+    async def test_retrigger_publishes_on_remaining_contexts(self):
+        """On success with remaining contexts in Redis, consumer re-publishes to MQ."""
+        body = _make_distilled_body()
+        mock_message = MagicMock()
+        leftover = _make_distilled_body(
+            project_id=body.project_id,
+            learning_space_id=body.learning_space_id,
+        )
+
+        with (
+            patch("acontext_core.service.skill_learner.DB_CLIENT") as mock_db,
+            patch(
+                "acontext_core.service.skill_learner.LS.update_session_status",
+                new_callable=AsyncMock,
+            ),
+            patch(
+                "acontext_core.service.skill_learner.check_redis_lock_or_set",
+                new_callable=AsyncMock,
+                return_value=True,
+            ),
+            patch(
+                "acontext_core.service.skill_learner.release_redis_lock",
+                new_callable=AsyncMock,
+            ),
+            patch(
+                "acontext_core.service.skill_learner.SLC.run_skill_agent",
+                new_callable=AsyncMock,
+                return_value=Result.resolve([]),
+            ),
+            patch(
+                "acontext_core.service.skill_learner.drain_skill_learn_pending",
+                new_callable=AsyncMock,
+                return_value=[leftover],
+            ),
+            patch(
+                "acontext_core.service.skill_learner.publish_mq",
+                new_callable=AsyncMock,
+            ) as mock_publish,
+        ):
+            mock_db.get_session_context.return_value.__aenter__ = AsyncMock(
+                return_value=MagicMock()
+            )
+            mock_db.get_session_context.return_value.__aexit__ = AsyncMock(
+                return_value=False
+            )
+
+            await process_skill_agent(body, mock_message)
+
+            mock_publish.assert_called_once()
+            call_kwargs = mock_publish.call_args.kwargs
+            assert call_kwargs["routing_key"] == "learning.skill.agent"
+            restored = SkillLearnDistilled.model_validate_json(call_kwargs["body"])
+            assert restored.session_id == leftover.session_id
+
+    @pytest.mark.asyncio
+    async def test_no_retrigger_when_redis_empty(self):
+        """On success with no remaining contexts, consumer does NOT re-publish."""
+        body = _make_distilled_body()
+        mock_message = MagicMock()
+
+        with (
+            patch("acontext_core.service.skill_learner.DB_CLIENT") as mock_db,
+            patch(
+                "acontext_core.service.skill_learner.LS.update_session_status",
+                new_callable=AsyncMock,
+            ),
+            patch(
+                "acontext_core.service.skill_learner.check_redis_lock_or_set",
+                new_callable=AsyncMock,
+                return_value=True,
+            ),
+            patch(
+                "acontext_core.service.skill_learner.release_redis_lock",
+                new_callable=AsyncMock,
+            ),
+            patch(
+                "acontext_core.service.skill_learner.SLC.run_skill_agent",
+                new_callable=AsyncMock,
+                return_value=Result.resolve([]),
+            ),
+            patch(
+                "acontext_core.service.skill_learner.drain_skill_learn_pending",
+                new_callable=AsyncMock,
+                return_value=[],
+            ),
+            patch(
+                "acontext_core.service.skill_learner.publish_mq",
+                new_callable=AsyncMock,
+            ) as mock_publish,
+        ):
+            mock_db.get_session_context.return_value.__aenter__ = AsyncMock(
+                return_value=MagicMock()
+            )
+            mock_db.get_session_context.return_value.__aexit__ = AsyncMock(
+                return_value=False
+            )
+
+            await process_skill_agent(body, mock_message)
+
+            mock_publish.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_no_retrigger_on_agent_failure(self):
+        """On agent failure, consumer does NOT check Redis for remaining contexts."""
+        body = _make_distilled_body()
+        mock_message = MagicMock()
+
+        with (
+            patch("acontext_core.service.skill_learner.DB_CLIENT") as mock_db,
+            patch(
+                "acontext_core.service.skill_learner.LS.update_session_status",
+                new_callable=AsyncMock,
+            ),
+            patch(
+                "acontext_core.service.skill_learner.check_redis_lock_or_set",
+                new_callable=AsyncMock,
+                return_value=True,
+            ),
+            patch(
+                "acontext_core.service.skill_learner.release_redis_lock",
+                new_callable=AsyncMock,
+            ),
+            patch(
+                "acontext_core.service.skill_learner.SLC.run_skill_agent",
+                new_callable=AsyncMock,
+                return_value=Result.reject("Agent crashed"),
+            ),
+            patch(
+                "acontext_core.service.skill_learner.drain_skill_learn_pending",
+                new_callable=AsyncMock,
+            ) as mock_drain,
+        ):
+            mock_db.get_session_context.return_value.__aenter__ = AsyncMock(
+                return_value=MagicMock()
+            )
+            mock_db.get_session_context.return_value.__aexit__ = AsyncMock(
+                return_value=False
+            )
+
+            await process_skill_agent(body, mock_message)
+
+            mock_drain.assert_not_called()
 
 
 # =============================================================================
@@ -933,7 +1233,7 @@ class TestRunSkillAgent:
             patch(
                 "acontext_core.service.controller.skill_learner.skill_learner_agent",
                 new_callable=AsyncMock,
-                return_value=Result.resolve(None),
+                return_value=Result.resolve([]),
             ) as mock_agent,
         ):
             mock_session = AsyncMock()
@@ -944,7 +1244,11 @@ class TestRunSkillAgent:
                 return_value=False
             )
 
-            result = await run_skill_agent(project_id, ls_id, distilled_context)
+            result = await run_skill_agent(
+                project_id, ls_id, distilled_context,
+                lock_key="skill_learn.test",
+                lock_ttl_seconds=240,
+            )
             assert result.ok()
             mock_agent.assert_called_once()
             call_kwargs = mock_agent.call_args.kwargs
@@ -953,6 +1257,8 @@ class TestRunSkillAgent:
             assert call_kwargs["user_id"] == user_id
             assert call_kwargs["distilled_context"] == distilled_context
             assert call_kwargs["skills_info"] == []
+            assert call_kwargs["lock_key"] == "skill_learn.test"
+            assert call_kwargs["lock_ttl_seconds"] == 240
 
     @pytest.mark.asyncio
     async def test_with_existing_skills(self):
@@ -996,7 +1302,7 @@ class TestRunSkillAgent:
             patch(
                 "acontext_core.service.controller.skill_learner.skill_learner_agent",
                 new_callable=AsyncMock,
-                return_value=Result.resolve(None),
+                return_value=Result.resolve([]),
             ) as mock_agent,
         ):
             mock_session = AsyncMock()
@@ -1305,7 +1611,7 @@ class TestEndToEnd:
             patch(
                 "acontext_core.service.controller.skill_learner.skill_learner_agent",
                 new_callable=AsyncMock,
-                return_value=Result.resolve(None),
+                return_value=Result.resolve([]),
             ) as mock_agent,
         ):
             mock_session = AsyncMock()

@@ -1,7 +1,12 @@
 from datetime import date
+from typing import List, TYPE_CHECKING
+
 from .base import BasePrompt
 from ...schema.llm import ToolSchema
 from ..tool.skill_learner_tools import SKILL_LEARNER_TOOLS
+
+if TYPE_CHECKING:
+    from ...schema.mq.learning import SkillLearnDistilled
 
 
 class SkillLearnerPrompt(BasePrompt):
@@ -15,13 +20,20 @@ Failures → extract anti-patterns, counterfactual corrections, prevention rules
 
 ## Context You Receive
 
-You receive ONE of the following context types, plus the available skills list:
+You receive one or more of the following context types in your initial user message, plus the available skills list. Additional contexts may arrive as follow-up user messages during your run — process them after finishing your current in-progress work.
 
 - **## Task Analysis**: pre-distilled summary of a completed task (not raw messages). Fields differ by outcome:
   - Success: task_goal, approach, key_decisions, generalizable_pattern
   - Failure: task_goal, failure_point, flawed_reasoning, what_should_have_been_done, prevention_principle
 - **## User Preferences Observed**: user facts, preferences, or personal info submitted during conversations, independent of any specific task outcome. These are direct factual statements, not task analysis.
 - **## Available Skills**: all skill names and descriptions in the learning space
+
+## Multi-Turn Context Arrival
+
+Additional contexts may arrive as follow-up user messages while you are working. When this happens:
+1. Complete your current in-progress work before processing new contexts. New contexts are additive — they do not replace or override what you were already working on.
+2. Finish the current update/creation, then proceed to the new contexts in order.
+3. The updated available skills list is included with new contexts so you can see skills you created/modified earlier in this run.
 
 ## Workflow
 
@@ -135,17 +147,59 @@ Before calling `finish`, verify all updates and skill instructions are done.
 
     @classmethod
     def pack_skill_learner_input(
-        cls, distilled_context: str, available_skills_str: str
+        cls,
+        distilled_context: str,
+        available_skills_str: str,
+        pending_contexts: "List[SkillLearnDistilled] | None" = None,
     ) -> str:
         today = date.today().isoformat()
-        return f"""{distilled_context}
+        parts = [distilled_context]
 
+        if pending_contexts:
+            parts.append(
+                "\n---\n\n**Additional pending contexts (queued while no agent was running):**"
+            )
+            for i, ctx in enumerate(pending_contexts, 1):
+                parts.append(f"\n### Pending Context {i}\n{ctx.distilled_context}")
+
+        parts.append(
+            f"""
 ## Available Skills
 {available_skills_str}
 
 Today's date: {today}
 
-Please analyze the above and update or create skills as appropriate.
+Please analyze the above and update or create skills as appropriate."""
+        )
+
+        return "\n".join(parts)
+
+    @classmethod
+    def pack_incoming_contexts(
+        cls,
+        contexts: "List[SkillLearnDistilled]",
+        available_skills_str: str,
+        count_bases: int = 0,
+    ) -> str:
+        today = date.today().isoformat()
+        header = (
+            "Additional contexts have arrived while you were working. "
+            "Finish your current task first, then process these in order."
+        )
+        ctx_parts = []
+        for i, ctx in enumerate(contexts, 1):
+            ctx_parts.append(
+                f"### New Context {i+count_bases}\n{ctx.distilled_context}"
+            )
+
+        return f"""{header}
+
+{chr(10).join(ctx_parts)}
+
+## Available Skills (updated)
+{available_skills_str}
+
+Today's date: {today}
 """
 
     @classmethod

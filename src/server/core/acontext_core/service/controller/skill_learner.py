@@ -1,3 +1,6 @@
+from typing import List, Optional
+from uuid import UUID
+
 from ...env import LOG
 from ...infra.db import DB_CLIENT
 from ...schema.result import Result
@@ -140,10 +143,13 @@ async def run_skill_agent(
     learning_space_id: asUUID,
     distilled_context: str,
     max_iterations: int = 5,
-) -> Result[None]:
+    lock_key: Optional[str] = None,
+    lock_ttl_seconds: Optional[int] = None,
+) -> Result[List[UUID]]:
     """Steps 3-4: Fetch learning space (for user_id) + skills, run agent.
 
     Re-fetches LearningSpace to get user_id (not passed via MQ message).
+    Returns drained session IDs on success so the consumer can mark them completed.
     """
     # Step 3: Fetch learning space info and skills
     async with DB_CLIENT.get_session_context() as db_session:
@@ -172,5 +178,7 @@ async def run_skill_agent(
         skills_info=skills_info,
         distilled_context=distilled_context,
         max_iterations=max_iterations,
+        lock_key=lock_key,
+        lock_ttl_seconds=lock_ttl_seconds,
     )
     return r

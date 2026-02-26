@@ -3,12 +3,27 @@ Tests for the skill learner prompt.
 
 Covers:
 - System prompt content validation
+- System prompt mentions multi-turn context arrival
 - pack_skill_learner_input formatting
+- pack_skill_learner_input with pending contexts
+- pack_incoming_contexts formatting
 - Tool schemas include all expected tools (no distillation tools)
 """
 
+import uuid
 import pytest
 from acontext_core.llm.prompt.skill_learner import SkillLearnerPrompt
+from acontext_core.schema.mq.learning import SkillLearnDistilled
+
+
+def _make_distilled(distilled_context="## Task Analysis\nTest"):
+    return SkillLearnDistilled(
+        project_id=uuid.uuid4(),
+        session_id=uuid.uuid4(),
+        task_id=uuid.uuid4(),
+        learning_space_id=uuid.uuid4(),
+        distilled_context=distilled_context,
+    )
 
 
 class TestSystemPrompt:
@@ -33,6 +48,13 @@ class TestSystemPrompt:
         prompt = SkillLearnerPrompt.system_prompt()
         assert "report_thinking" in prompt
 
+    def test_mentions_multi_turn_context_arrival(self):
+        """System prompt describes multi-turn context arrival."""
+        prompt = SkillLearnerPrompt.system_prompt()
+        assert "Multi-Turn Context Arrival" in prompt
+        assert "Complete your current in-progress work" in prompt
+        assert "additive" in prompt
+
 
 class TestPackSkillLearnerInput:
     def test_formats_both_sections(self):
@@ -51,6 +73,67 @@ class TestPackSkillLearnerInput:
         skills_str = "(No skills in this learning space yet)"
         result = SkillLearnerPrompt.pack_skill_learner_input(distilled, skills_str)
         assert "(No skills in this learning space yet)" in result
+
+    def test_with_pending_contexts(self):
+        """pack_skill_learner_input includes pending contexts when provided."""
+        distilled = "## Task Analysis\nInitial"
+        skills_str = "- **my-skill**: Description"
+        pending = [
+            _make_distilled("## Task Analysis\nPending A"),
+            _make_distilled("## Task Analysis\nPending B"),
+        ]
+        result = SkillLearnerPrompt.pack_skill_learner_input(
+            distilled, skills_str, pending_contexts=pending
+        )
+        assert "Initial" in result
+        assert "Pending A" in result
+        assert "Pending B" in result
+        assert "Pending Context 1" in result
+        assert "Pending Context 2" in result
+
+    def test_no_pending_contexts_same_as_before(self):
+        """pack_skill_learner_input with no pending is equivalent to old behavior."""
+        distilled = "## Task Analysis\nOnly this"
+        skills_str = "- **s**: d"
+        result = SkillLearnerPrompt.pack_skill_learner_input(distilled, skills_str)
+        assert "Pending" not in result
+        assert "Only this" in result
+
+
+class TestPackIncomingContexts:
+    def test_formats_single_context(self):
+        """pack_incoming_contexts formats a single context correctly."""
+        ctx = _make_distilled("## Task Analysis\nNew learning")
+        result = SkillLearnerPrompt.pack_incoming_contexts(
+            [ctx], "- **skill-a**: desc"
+        )
+        assert "Additional contexts have arrived" in result
+        assert "New learning" in result
+        assert "## Available Skills (updated)" in result
+        assert "skill-a" in result
+
+    def test_formats_multiple_contexts(self):
+        """pack_incoming_contexts formats N contexts correctly."""
+        contexts = [
+            _make_distilled("## Analysis A"),
+            _make_distilled("## Analysis B"),
+            _make_distilled("## Analysis C"),
+        ]
+        result = SkillLearnerPrompt.pack_incoming_contexts(
+            contexts, "(No skills in this learning space yet)"
+        )
+        assert "New Context 1" in result
+        assert "New Context 2" in result
+        assert "New Context 3" in result
+        assert "Analysis A" in result
+        assert "Analysis B" in result
+        assert "Analysis C" in result
+
+    def test_includes_finish_instruction(self):
+        """pack_incoming_contexts includes instruction to finish current work first."""
+        ctx = _make_distilled()
+        result = SkillLearnerPrompt.pack_incoming_contexts([ctx], "")
+        assert "Finish your current task first" in result
 
 
 class TestToolSchemas:

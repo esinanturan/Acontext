@@ -7,15 +7,26 @@ Covers:
 - Agent stops on finish / no-tool / max_iterations
 - Agent preserves has_reported_thinking across iterations
 - Agent handles LLM error and tool error gracefully
+- Redis drain on entry: picks up leftover pending contexts
+- Redis drain between iterations: injects new user messages
+- Finish overridden when pending contexts exist
+- Finish honored when no pending contexts
+- Agent returns Result[list[UUID]] with all drained session IDs on success
+- Agent re-pushes all drained items to Redis on RuntimeError
+- Lock TTL renewed between iterations
+- max_iterations extended when new contexts arrive
+- Context cap stops draining after max_contexts_per_agent_run
 """
 
 import uuid
 import pytest
 from pydantic import BaseModel as PydanticBaseModel
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch, call
 
+from acontext_core.env import DEFAULT_CORE_CONFIG
 from acontext_core.schema.result import Result
 from acontext_core.schema.llm import LLMResponse, LLMToolCall, LLMFunction
+from acontext_core.schema.mq.learning import SkillLearnDistilled
 from acontext_core.service.data.learning_space import SkillInfo
 from acontext_core.llm.agent.skill_learner import skill_learner_agent
 
@@ -57,6 +68,19 @@ def _make_skill_info(
     )
 
 
+def _make_distilled(
+    project_id=None, session_id=None, learning_space_id=None,
+    distilled_context="## Task Analysis\nPending context",
+):
+    return SkillLearnDistilled(
+        project_id=project_id or uuid.uuid4(),
+        session_id=session_id or uuid.uuid4(),
+        task_id=uuid.uuid4(),
+        learning_space_id=learning_space_id or uuid.uuid4(),
+        distilled_context=distilled_context,
+    )
+
+
 def _setup_db_mock(mock_db, db_session=None):
     if db_session is None:
         db_session = AsyncMock()
@@ -89,9 +113,6 @@ class TestAgentMultiTurn:
         original_content = "# Auth\nAlways verify tokens."
         updated_artifact = MagicMock()
 
-        # Turn 1: report_thinking
-        # Turn 2: get_skill
-        # Turn 3: get_skill_file + str_replace_skill_file + finish
         llm_responses = [
             _llm(tool_calls=[
                 _tc("report_thinking", {"thinking": "I should update auth-patterns with the new pattern."}),
@@ -131,7 +152,6 @@ class TestAgentMultiTurn:
                 "acontext_core.llm.agent.skill_learner.response_to_sendable_message",
                 return_value={"role": "assistant", "content": "ok"},
             ),
-            # Mock data layer functions used by tool handlers
             patch(
                 "acontext_core.llm.tool.skill_learner_lib.get_skill_file.get_artifact_by_path",
                 new_callable=AsyncMock,
@@ -158,6 +178,11 @@ class TestAgentMultiTurn:
                 new_callable=AsyncMock,
                 return_value=Result.resolve(updated_artifact),
             ) as mock_upsert,
+            patch(
+                "acontext_core.llm.agent.skill_learner.drain_skill_learn_pending",
+                new_callable=AsyncMock,
+                return_value=[],
+            ),
         ):
             _setup_db_mock(mock_db)
 
@@ -170,7 +195,6 @@ class TestAgentMultiTurn:
             )
 
             assert result.ok()
-            # upsert was called (file was edited)
             mock_upsert.assert_called_once()
 
     @pytest.mark.asyncio
@@ -228,6 +252,11 @@ class TestAgentMultiTurn:
                 new_callable=AsyncMock,
                 return_value=Result.resolve([mock_artifact]),
             ),
+            patch(
+                "acontext_core.llm.agent.skill_learner.drain_skill_learn_pending",
+                new_callable=AsyncMock,
+                return_value=[],
+            ),
         ):
             _setup_db_mock(mock_db)
 
@@ -235,13 +264,12 @@ class TestAgentMultiTurn:
                 project_id=project_id,
                 learning_space_id=ls_id,
                 user_id=user_id,
-                skills_info=[],  # No existing skills
+                skills_info=[],
                 distilled_context="## Task Analysis (Success)\n**Goal:** Handle errors\n...",
             )
 
             assert result.ok()
             mock_create.assert_called_once()
-            # Verify user_id was passed through
             assert mock_create.call_args.kwargs["user_id"] == user_id
 
 
@@ -277,6 +305,11 @@ class TestAgentContextInput:
                 "acontext_core.llm.agent.skill_learner.response_to_sendable_message",
                 return_value={"role": "assistant", "content": "No changes needed."},
             ),
+            patch(
+                "acontext_core.llm.agent.skill_learner.drain_skill_learn_pending",
+                new_callable=AsyncMock,
+                return_value=[],
+            ),
         ):
             _setup_db_mock(mock_db)
 
@@ -288,24 +321,16 @@ class TestAgentContextInput:
                 distilled_context=distilled,
             )
 
-            # Verify LLM was called
             assert len(captured_messages) == 1
             llm_call = captured_messages[0]
 
-            # User message must contain distilled context
             user_msg = llm_call["history_messages"][0]["content"]
             assert "## Task Analysis (Success)" in user_msg
             assert "Fix auth bug" in user_msg
             assert "Checked token flow" in user_msg
-
-            # User message must contain available skills section
             assert "## Available Skills" in user_msg
             assert "auth-patterns" in user_msg
-
-            # System prompt uses the skill learner prompt
             assert "report_thinking" in llm_call["system_prompt"]
-
-            # prompt_kwargs is agent.skill_learner
             assert llm_call["prompt_kwargs"] == {"prompt_id": "agent.skill_learner"}
 
     @pytest.mark.asyncio
@@ -327,6 +352,11 @@ class TestAgentContextInput:
             patch(
                 "acontext_core.llm.agent.skill_learner.response_to_sendable_message",
                 return_value={"role": "assistant", "content": "ok"},
+            ),
+            patch(
+                "acontext_core.llm.agent.skill_learner.drain_skill_learn_pending",
+                new_callable=AsyncMock,
+                return_value=[],
             ),
         ):
             _setup_db_mock(mock_db)
@@ -363,6 +393,11 @@ class TestAgentStoppingConditions:
                 "acontext_core.llm.agent.skill_learner.response_to_sendable_message",
                 return_value={"role": "assistant", "content": "Nothing to do."},
             ),
+            patch(
+                "acontext_core.llm.agent.skill_learner.drain_skill_learn_pending",
+                new_callable=AsyncMock,
+                return_value=[],
+            ),
         ):
             _setup_db_mock(mock_db)
 
@@ -389,6 +424,11 @@ class TestAgentStoppingConditions:
             patch(
                 "acontext_core.llm.agent.skill_learner.response_to_sendable_message",
                 return_value={"role": "assistant", "content": "ok"},
+            ),
+            patch(
+                "acontext_core.llm.agent.skill_learner.drain_skill_learn_pending",
+                new_callable=AsyncMock,
+                return_value=[],
             ),
         ):
             _setup_db_mock(mock_db)
@@ -426,6 +466,11 @@ class TestAgentStoppingConditions:
                 "acontext_core.llm.agent.skill_learner.response_to_sendable_message",
                 return_value={"role": "assistant", "content": "ok"},
             ),
+            patch(
+                "acontext_core.llm.agent.skill_learner.drain_skill_learn_pending",
+                new_callable=AsyncMock,
+                return_value=[],
+            ),
         ):
             _setup_db_mock(mock_db)
 
@@ -458,6 +503,15 @@ class TestAgentErrorHandling:
                 new_callable=AsyncMock,
                 return_value=Result.reject("LLM timeout"),
             ),
+            patch(
+                "acontext_core.llm.agent.skill_learner.drain_skill_learn_pending",
+                new_callable=AsyncMock,
+                return_value=[],
+            ),
+            patch(
+                "acontext_core.llm.agent.skill_learner.push_skill_learn_pending",
+                new_callable=AsyncMock,
+            ),
         ):
             _setup_db_mock(mock_db)
 
@@ -486,6 +540,15 @@ class TestAgentErrorHandling:
             patch(
                 "acontext_core.llm.agent.skill_learner.response_to_sendable_message",
                 return_value={"role": "assistant", "content": "ok"},
+            ),
+            patch(
+                "acontext_core.llm.agent.skill_learner.drain_skill_learn_pending",
+                new_callable=AsyncMock,
+                return_value=[],
+            ),
+            patch(
+                "acontext_core.llm.agent.skill_learner.push_skill_learn_pending",
+                new_callable=AsyncMock,
             ),
         ):
             _setup_db_mock(mock_db)
@@ -520,11 +583,9 @@ class TestAgentStatePreservation:
         updated_artifact = MagicMock()
 
         llm_responses = [
-            # Iteration 1: report_thinking only
             _llm(tool_calls=[
                 _tc("report_thinking", {"thinking": "I should edit notes.md."}),
             ]),
-            # Iteration 2: str_replace (should work because thinking was reported) + finish
             _llm(tool_calls=[
                 _tc("str_replace_skill_file", {
                     "skill_name": "my-skill",
@@ -568,6 +629,11 @@ class TestAgentStatePreservation:
                 new_callable=AsyncMock,
                 return_value=Result.resolve(updated_artifact),
             ) as mock_upsert,
+            patch(
+                "acontext_core.llm.agent.skill_learner.drain_skill_learn_pending",
+                new_callable=AsyncMock,
+                return_value=[],
+            ),
         ):
             _setup_db_mock(mock_db)
 
@@ -580,9 +646,7 @@ class TestAgentStatePreservation:
             )
 
             assert result.ok()
-            # Edit succeeded (not blocked by thinking guard)
             mock_upsert.assert_called_once()
-            # Verify upload was called with the replaced content
             upload_content = mock_upload.call_args[0][3]
             assert upload_content == "New content"
 
@@ -612,6 +676,11 @@ class TestAgentStatePreservation:
                 "acontext_core.llm.agent.skill_learner.response_to_sendable_message",
                 return_value={"role": "assistant", "content": "ok"},
             ),
+            patch(
+                "acontext_core.llm.agent.skill_learner.drain_skill_learn_pending",
+                new_callable=AsyncMock,
+                return_value=[],
+            ),
         ):
             _setup_db_mock(mock_db)
 
@@ -625,9 +694,594 @@ class TestAgentStatePreservation:
 
             assert result.ok()
             assert len(captured_calls) == 2
-            # Second LLM call should include tool response from first call
             second_call_messages = captured_calls[1]["history_messages"]
             tool_msgs = [m for m in second_call_messages if m.get("role") == "tool"]
             assert len(tool_msgs) == 1
             assert tool_msgs[0]["tool_call_id"] == "call_1"
             assert "auth-patterns" in tool_msgs[0]["content"]
+
+
+# =============================================================================
+# Redis drain & injection tests
+# =============================================================================
+
+
+class TestAgentRedisDrain:
+    @pytest.mark.asyncio
+    async def test_drains_on_entry(self):
+        """Agent drains pending contexts on entry and includes them in first user message."""
+        project_id = uuid.uuid4()
+        ls_id = uuid.uuid4()
+
+        pending_ctx = _make_distilled(
+            project_id=project_id,
+            learning_space_id=ls_id,
+            distilled_context="## Task Analysis\nPending from crash",
+        )
+
+        captured_messages = []
+
+        async def mock_llm_complete(**kwargs):
+            captured_messages.append(kwargs)
+            return Result.resolve(_llm(content="Done.", tool_calls=None))
+
+        drain_calls = [0]
+
+        async def mock_drain(pid, lsid, **kwargs):
+            drain_calls[0] += 1
+            if drain_calls[0] == 1:
+                return [pending_ctx]
+            return []
+
+        with (
+            patch("acontext_core.llm.agent.skill_learner.DB_CLIENT") as mock_db,
+            patch(
+                "acontext_core.llm.agent.skill_learner.llm_complete",
+                new_callable=AsyncMock,
+                side_effect=mock_llm_complete,
+            ),
+            patch(
+                "acontext_core.llm.agent.skill_learner.response_to_sendable_message",
+                return_value={"role": "assistant", "content": "ok"},
+            ),
+            patch(
+                "acontext_core.llm.agent.skill_learner.drain_skill_learn_pending",
+                new_callable=AsyncMock,
+                side_effect=mock_drain,
+            ),
+        ):
+            _setup_db_mock(mock_db)
+
+            result = await skill_learner_agent(
+                project_id=project_id,
+                learning_space_id=ls_id,
+                user_id=uuid.uuid4(),
+                skills_info=[],
+                distilled_context="## Task Analysis\nInitial context",
+            )
+
+            assert result.ok()
+            user_msg = captured_messages[0]["history_messages"][0]["content"]
+            assert "Pending from crash" in user_msg
+            assert "Initial context" in user_msg
+
+    @pytest.mark.asyncio
+    async def test_no_pending_behaves_identically(self):
+        """No pending contexts → agent behaves identically to before."""
+        captured_messages = []
+
+        async def mock_llm_complete(**kwargs):
+            captured_messages.append(kwargs)
+            return Result.resolve(_llm(content="Done.", tool_calls=None))
+
+        with (
+            patch("acontext_core.llm.agent.skill_learner.DB_CLIENT") as mock_db,
+            patch(
+                "acontext_core.llm.agent.skill_learner.llm_complete",
+                new_callable=AsyncMock,
+                side_effect=mock_llm_complete,
+            ),
+            patch(
+                "acontext_core.llm.agent.skill_learner.response_to_sendable_message",
+                return_value={"role": "assistant", "content": "ok"},
+            ),
+            patch(
+                "acontext_core.llm.agent.skill_learner.drain_skill_learn_pending",
+                new_callable=AsyncMock,
+                return_value=[],
+            ),
+        ):
+            _setup_db_mock(mock_db)
+
+            result = await skill_learner_agent(
+                project_id=uuid.uuid4(),
+                learning_space_id=uuid.uuid4(),
+                user_id=uuid.uuid4(),
+                skills_info=[],
+                distilled_context="## Task Analysis\nOnly context",
+            )
+
+            assert result.ok()
+            data, _ = result.unpack()
+            assert data == []
+            user_msg = captured_messages[0]["history_messages"][0]["content"]
+            assert "Pending" not in user_msg
+
+    @pytest.mark.asyncio
+    async def test_between_iterations_injects_user_message(self):
+        """Pending contexts drained between iterations are injected as user message."""
+        project_id = uuid.uuid4()
+        ls_id = uuid.uuid4()
+
+        mid_run_ctx = _make_distilled(
+            project_id=project_id,
+            learning_space_id=ls_id,
+            distilled_context="## Task Analysis\nMid-run context",
+        )
+
+        drain_call_count = [0]
+
+        async def mock_drain(pid, lsid, **kwargs):
+            drain_call_count[0] += 1
+            if drain_call_count[0] == 2:
+                return [mid_run_ctx]
+            return []
+
+        captured_messages = []
+
+        async def mock_llm_complete(**kwargs):
+            captured_messages.append(kwargs)
+            if len(captured_messages) == 1:
+                return Result.resolve(
+                    _llm(tool_calls=[_tc("report_thinking", {"thinking": "Working..."})])
+                )
+            else:
+                return Result.resolve(_llm(tool_calls=[_tc("finish", {})]))
+
+        with (
+            patch("acontext_core.llm.agent.skill_learner.DB_CLIENT") as mock_db,
+            patch(
+                "acontext_core.llm.agent.skill_learner.llm_complete",
+                new_callable=AsyncMock,
+                side_effect=mock_llm_complete,
+            ),
+            patch(
+                "acontext_core.llm.agent.skill_learner.response_to_sendable_message",
+                return_value={"role": "assistant", "content": "ok"},
+            ),
+            patch(
+                "acontext_core.llm.agent.skill_learner.drain_skill_learn_pending",
+                new_callable=AsyncMock,
+                side_effect=mock_drain,
+            ),
+            patch(
+                "acontext_core.llm.agent.skill_learner._refresh_skills",
+                new_callable=AsyncMock,
+                return_value={},
+            ),
+        ):
+            _setup_db_mock(mock_db)
+
+            result = await skill_learner_agent(
+                project_id=project_id,
+                learning_space_id=ls_id,
+                user_id=uuid.uuid4(),
+                skills_info=[],
+                distilled_context="## Task Analysis\nInitial",
+            )
+
+            assert result.ok()
+            second_call_msgs = captured_messages[1]["history_messages"]
+            user_msgs = [m for m in second_call_msgs if m.get("role") == "user"]
+            injected = [m for m in user_msgs if "Mid-run context" in m["content"]]
+            assert len(injected) == 1
+
+    @pytest.mark.asyncio
+    async def test_returns_drained_session_ids_on_success(self):
+        """Agent returns list of drained session IDs on success."""
+        project_id = uuid.uuid4()
+        ls_id = uuid.uuid4()
+        pending_session_id = uuid.uuid4()
+
+        pending = _make_distilled(
+            project_id=project_id,
+            session_id=pending_session_id,
+            learning_space_id=ls_id,
+        )
+
+        drain_calls = [0]
+
+        async def mock_drain(pid, lsid, **kwargs):
+            drain_calls[0] += 1
+            if drain_calls[0] == 1:
+                return [pending]
+            return []
+
+        with (
+            patch("acontext_core.llm.agent.skill_learner.DB_CLIENT") as mock_db,
+            patch(
+                "acontext_core.llm.agent.skill_learner.llm_complete",
+                new_callable=AsyncMock,
+                return_value=Result.resolve(_llm(content="Done.")),
+            ),
+            patch(
+                "acontext_core.llm.agent.skill_learner.response_to_sendable_message",
+                return_value={"role": "assistant", "content": "ok"},
+            ),
+            patch(
+                "acontext_core.llm.agent.skill_learner.drain_skill_learn_pending",
+                new_callable=AsyncMock,
+                side_effect=mock_drain,
+            ),
+        ):
+            _setup_db_mock(mock_db)
+
+            result = await skill_learner_agent(
+                project_id=project_id,
+                learning_space_id=ls_id,
+                user_id=uuid.uuid4(),
+                skills_info=[],
+                distilled_context="## Task Analysis\nInitial",
+            )
+
+            assert result.ok()
+            data, _ = result.unpack()
+            assert pending_session_id in data
+
+    @pytest.mark.asyncio
+    async def test_repushes_drained_on_failure(self):
+        """Agent re-pushes all drained items to Redis on RuntimeError."""
+        project_id = uuid.uuid4()
+        ls_id = uuid.uuid4()
+
+        pending = _make_distilled(
+            project_id=project_id,
+            learning_space_id=ls_id,
+        )
+
+        drain_calls = [0]
+
+        async def mock_drain(pid, lsid, **kwargs):
+            drain_calls[0] += 1
+            if drain_calls[0] == 1:
+                return [pending]
+            return []
+
+        with (
+            patch("acontext_core.llm.agent.skill_learner.DB_CLIENT") as mock_db,
+            patch(
+                "acontext_core.llm.agent.skill_learner.llm_complete",
+                new_callable=AsyncMock,
+                return_value=Result.reject("LLM timeout"),
+            ),
+            patch(
+                "acontext_core.llm.agent.skill_learner.drain_skill_learn_pending",
+                new_callable=AsyncMock,
+                side_effect=mock_drain,
+            ),
+            patch(
+                "acontext_core.llm.agent.skill_learner.push_skill_learn_pending",
+                new_callable=AsyncMock,
+            ) as mock_push,
+        ):
+            _setup_db_mock(mock_db)
+
+            result = await skill_learner_agent(
+                project_id=project_id,
+                learning_space_id=ls_id,
+                user_id=uuid.uuid4(),
+                skills_info=[],
+                distilled_context="## Task Analysis\nInitial",
+            )
+
+            assert not result.ok()
+            mock_push.assert_called_once_with(
+                project_id, ls_id, pending.model_dump_json()
+            )
+
+    @pytest.mark.asyncio
+    async def test_finish_overridden_when_pending(self):
+        """Finish is overridden when pending contexts exist — injects and continues."""
+        project_id = uuid.uuid4()
+        ls_id = uuid.uuid4()
+
+        mid_run_ctx = _make_distilled(
+            project_id=project_id,
+            learning_space_id=ls_id,
+            distilled_context="## Task Analysis\nNew context after finish",
+        )
+
+        drain_call_count = [0]
+
+        async def mock_drain(pid, lsid, **kwargs):
+            drain_call_count[0] += 1
+            if drain_call_count[0] == 2:
+                return [mid_run_ctx]
+            return []
+
+        captured_messages = []
+
+        async def mock_llm_complete(**kwargs):
+            captured_messages.append(kwargs)
+            if len(captured_messages) == 1:
+                return Result.resolve(_llm(tool_calls=[_tc("finish", {})]))
+            elif len(captured_messages) == 2:
+                return Result.resolve(_llm(tool_calls=[_tc("finish", {})]))
+            return Result.resolve(_llm(content="Done."))
+
+        with (
+            patch("acontext_core.llm.agent.skill_learner.DB_CLIENT") as mock_db,
+            patch(
+                "acontext_core.llm.agent.skill_learner.llm_complete",
+                new_callable=AsyncMock,
+                side_effect=mock_llm_complete,
+            ),
+            patch(
+                "acontext_core.llm.agent.skill_learner.response_to_sendable_message",
+                return_value={"role": "assistant", "content": "ok"},
+            ),
+            patch(
+                "acontext_core.llm.agent.skill_learner.drain_skill_learn_pending",
+                new_callable=AsyncMock,
+                side_effect=mock_drain,
+            ),
+            patch(
+                "acontext_core.llm.agent.skill_learner._refresh_skills",
+                new_callable=AsyncMock,
+                return_value={},
+            ),
+        ):
+            _setup_db_mock(mock_db)
+
+            result = await skill_learner_agent(
+                project_id=project_id,
+                learning_space_id=ls_id,
+                user_id=uuid.uuid4(),
+                skills_info=[],
+                distilled_context="## Task Analysis\nInitial",
+            )
+
+            assert result.ok()
+            assert len(captured_messages) == 2
+            second_call_msgs = captured_messages[1]["history_messages"]
+            user_msgs = [m for m in second_call_msgs if m.get("role") == "user"]
+            injected = [m for m in user_msgs if "New context after finish" in m["content"]]
+            assert len(injected) == 1
+
+    @pytest.mark.asyncio
+    async def test_finish_honored_when_no_pending(self):
+        """Finish is honored when the pending list is empty."""
+        with (
+            patch("acontext_core.llm.agent.skill_learner.DB_CLIENT") as mock_db,
+            patch(
+                "acontext_core.llm.agent.skill_learner.llm_complete",
+                new_callable=AsyncMock,
+                return_value=Result.resolve(_llm(tool_calls=[_tc("finish", {})])),
+            ),
+            patch(
+                "acontext_core.llm.agent.skill_learner.response_to_sendable_message",
+                return_value={"role": "assistant", "content": "ok"},
+            ),
+            patch(
+                "acontext_core.llm.agent.skill_learner.drain_skill_learn_pending",
+                new_callable=AsyncMock,
+                return_value=[],
+            ),
+        ):
+            _setup_db_mock(mock_db)
+
+            result = await skill_learner_agent(
+                project_id=uuid.uuid4(),
+                learning_space_id=uuid.uuid4(),
+                user_id=uuid.uuid4(),
+                skills_info=[],
+                distilled_context="## Task Analysis\n...",
+            )
+
+            assert result.ok()
+
+
+# =============================================================================
+# Lock TTL renewal
+# =============================================================================
+
+
+class TestAgentLockRenewal:
+    @pytest.mark.asyncio
+    async def test_renews_lock_between_iterations(self):
+        """Lock TTL is renewed between iterations when lock_key is provided."""
+        call_count = [0]
+
+        async def mock_llm(*args, **kwargs):
+            call_count[0] += 1
+            if call_count[0] <= 2:
+                return Result.resolve(
+                    _llm(tool_calls=[_tc("report_thinking", {"thinking": f"Iter {call_count[0]}"})])
+                )
+            return Result.resolve(_llm(tool_calls=[_tc("finish", {})]))
+
+        with (
+            patch("acontext_core.llm.agent.skill_learner.DB_CLIENT") as mock_db,
+            patch(
+                "acontext_core.llm.agent.skill_learner.llm_complete",
+                new_callable=AsyncMock,
+                side_effect=mock_llm,
+            ),
+            patch(
+                "acontext_core.llm.agent.skill_learner.response_to_sendable_message",
+                return_value={"role": "assistant", "content": "ok"},
+            ),
+            patch(
+                "acontext_core.llm.agent.skill_learner.drain_skill_learn_pending",
+                new_callable=AsyncMock,
+                return_value=[],
+            ),
+            patch(
+                "acontext_core.llm.agent.skill_learner.renew_redis_lock",
+                new_callable=AsyncMock,
+                return_value=True,
+            ) as mock_renew,
+        ):
+            _setup_db_mock(mock_db)
+
+            project_id = uuid.uuid4()
+            result = await skill_learner_agent(
+                project_id=project_id,
+                learning_space_id=uuid.uuid4(),
+                user_id=uuid.uuid4(),
+                skills_info=[],
+                distilled_context="## Task Analysis\n...",
+                lock_key="skill_learn.test",
+                lock_ttl_seconds=240,
+            )
+
+            assert result.ok()
+            assert mock_renew.call_count == 2
+            for c in mock_renew.call_args_list:
+                assert c[0][1] == "skill_learn.test"
+                assert c[0][2] == 240
+
+
+# =============================================================================
+# Max iterations extension
+# =============================================================================
+
+
+class TestAgentIterationsExtension:
+    EXTRA_ITERS = 3
+
+    @pytest.mark.asyncio
+    async def test_extends_max_iterations_on_new_contexts(self):
+        """max_iterations increases by extra_iters when new contexts arrive."""
+        project_id = uuid.uuid4()
+        ls_id = uuid.uuid4()
+
+        mid_run_ctx = _make_distilled(
+            project_id=project_id,
+            learning_space_id=ls_id,
+        )
+
+        drain_call_count = [0]
+
+        async def mock_drain(pid, lsid, **kwargs):
+            drain_call_count[0] += 1
+            if drain_call_count[0] == 2:
+                return [mid_run_ctx]
+            return []
+
+        call_count = [0]
+
+        async def mock_llm(*args, **kwargs):
+            call_count[0] += 1
+            return Result.resolve(
+                _llm(tool_calls=[_tc("report_thinking", {"thinking": f"Iter {call_count[0]}"})])
+            )
+
+        with (
+            patch("acontext_core.llm.agent.skill_learner.DB_CLIENT") as mock_db,
+            patch(
+                "acontext_core.llm.agent.skill_learner.llm_complete",
+                new_callable=AsyncMock,
+                side_effect=mock_llm,
+            ),
+            patch(
+                "acontext_core.llm.agent.skill_learner.response_to_sendable_message",
+                return_value={"role": "assistant", "content": "ok"},
+            ),
+            patch(
+                "acontext_core.llm.agent.skill_learner.drain_skill_learn_pending",
+                new_callable=AsyncMock,
+                side_effect=mock_drain,
+            ),
+            patch(
+                "acontext_core.llm.agent.skill_learner._refresh_skills",
+                new_callable=AsyncMock,
+                return_value={},
+            ),
+            patch.object(
+                DEFAULT_CORE_CONFIG,
+                "skill_learn_extra_iterations_per_context_batch",
+                self.EXTRA_ITERS,
+            ),
+        ):
+            _setup_db_mock(mock_db)
+
+            result = await skill_learner_agent(
+                project_id=project_id,
+                learning_space_id=ls_id,
+                user_id=uuid.uuid4(),
+                skills_info=[],
+                distilled_context="## Task Analysis\n...",
+                max_iterations=5,
+            )
+
+            assert result.ok()
+            # 5 original + 3 extra from one drain batch = 8 total
+            assert call_count[0] == 5 + self.EXTRA_ITERS
+
+    @pytest.mark.asyncio
+    async def test_context_cap_stops_draining(self):
+        """Draining stops after max_contexts_per_agent_run is reached."""
+        project_id = uuid.uuid4()
+        ls_id = uuid.uuid4()
+
+        async def mock_drain_always(pid, lsid, **kwargs):
+            return [_make_distilled(project_id=project_id, learning_space_id=ls_id)]
+
+        call_count = [0]
+
+        async def mock_llm(*args, **kwargs):
+            call_count[0] += 1
+            return Result.resolve(
+                _llm(tool_calls=[_tc("report_thinking", {"thinking": f"Iter {call_count[0]}"})])
+            )
+
+        with (
+            patch("acontext_core.llm.agent.skill_learner.DB_CLIENT") as mock_db,
+            patch(
+                "acontext_core.llm.agent.skill_learner.llm_complete",
+                new_callable=AsyncMock,
+                side_effect=mock_llm,
+            ),
+            patch(
+                "acontext_core.llm.agent.skill_learner.response_to_sendable_message",
+                return_value={"role": "assistant", "content": "ok"},
+            ),
+            patch(
+                "acontext_core.llm.agent.skill_learner.drain_skill_learn_pending",
+                new_callable=AsyncMock,
+                side_effect=mock_drain_always,
+            ) as mock_drain,
+            patch(
+                "acontext_core.llm.agent.skill_learner._refresh_skills",
+                new_callable=AsyncMock,
+                return_value={},
+            ),
+            patch.object(
+                DEFAULT_CORE_CONFIG,
+                "skill_learn_max_contexts_per_agent_run",
+                2,
+            ),
+            patch.object(
+                DEFAULT_CORE_CONFIG,
+                "skill_learn_extra_iterations_per_context_batch",
+                self.EXTRA_ITERS,
+            ),
+        ):
+            _setup_db_mock(mock_db)
+
+            result = await skill_learner_agent(
+                project_id=project_id,
+                learning_space_id=ls_id,
+                user_id=uuid.uuid4(),
+                skills_info=[],
+                distilled_context="## Task Analysis\n...",
+                max_iterations=2,
+            )
+
+            assert result.ok()
+            # Drain called: 1 on entry + 1 between iterations = 2 total.
+            # After that, drained_items (2) >= max_contexts (2), no more drains.
+            assert mock_drain.call_count == 2
+            data, _ = result.unpack()
+            assert len(data) == 2

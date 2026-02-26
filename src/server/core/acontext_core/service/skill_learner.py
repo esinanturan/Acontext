@@ -5,13 +5,17 @@ from ..infra.async_mq import (
     publish_mq,
     Message,
     ConsumerConfigData,
-    SpecialHandler,
 )
 from ..schema.mq.learning import SkillLearnTask, SkillLearnDistilled
 from .constants import EX, RK
 from .data import learning_space as LS
 from .controller import skill_learner as SLC
-from .utils import check_redis_lock_or_set, release_redis_lock
+from .utils import (
+    check_redis_lock_or_set,
+    release_redis_lock,
+    push_skill_learn_pending,
+    drain_skill_learn_pending,
+)
 
 
 # =============================================================================
@@ -51,9 +55,7 @@ async def process_skill_distillation(body: SkillLearnTask, message: Message):
     )
     distilled_payload, eil = r.unpack()
     if eil:
-        LOG.warning(
-            f"Skill distillation: failed for task {body.task_id}: {eil}"
-        )
+        LOG.warning(f"Skill distillation: failed for task {body.task_id}: {eil}")
         async with DB_CLIENT.get_session_context() as db_session:
             await LS.update_session_status(db_session, body.session_id, "failed")
         return
@@ -85,7 +87,7 @@ async def process_skill_distillation(body: SkillLearnTask, message: Message):
         exchange_name=EX.learning_skill,
         routing_key=RK.learning_skill_agent,
         queue_name="learning.skill.agent.entry",
-        timeout=DEFAULT_CORE_CONFIG.skill_learn_lock_ttl_seconds + 60,
+        timeout=DEFAULT_CORE_CONFIG.skill_learn_agent_consumer_timeout,
     )
 )
 async def process_skill_agent(body: SkillLearnDistilled, message: Message):
@@ -103,51 +105,53 @@ async def process_skill_agent(body: SkillLearnDistilled, message: Message):
     )
     if not _l:
         LOG.info(
-            f"Skill agent: learning space {body.learning_space_id} is locked, republishing to retry"
+            f"Skill agent: learning space {body.learning_space_id} is locked, pushing to Redis pending list"
         )
-        await publish_mq(
-            exchange_name=EX.learning_skill,
-            routing_key=RK.learning_skill_agent_retry,
-            body=body.model_dump_json(),
+        await push_skill_learn_pending(
+            body.project_id, body.learning_space_id, body.model_dump_json()
         )
+        async with DB_CLIENT.get_session_context() as db_session:
+            await LS.update_session_status(db_session, body.session_id, "queued")
         return
 
+    should_retrigger = False
     try:
         r = await SLC.run_skill_agent(
             body.project_id,
             body.learning_space_id,
             body.distilled_context,
             max_iterations=DEFAULT_CORE_CONFIG.skill_learn_agent_max_iterations,
+            lock_key=lock_key,
+            lock_ttl_seconds=DEFAULT_CORE_CONFIG.skill_learn_lock_ttl_seconds,
         )
-        _, eil = r.unpack()
+        drained_session_ids, eil = r.unpack()
         if eil:
             LOG.warning(
                 f"Skill agent: processing failed for learning space {body.learning_space_id}: {eil}"
             )
             async with DB_CLIENT.get_session_context() as db_session:
-                await LS.update_session_status(
-                    db_session, body.session_id, "failed"
-                )
+                await LS.update_session_status(db_session, body.session_id, "failed")
         else:
+            should_retrigger = True
+            all_session_ids = [body.session_id] + (drained_session_ids or [])
+            all_session_ids = list(set(all_session_ids))
             async with DB_CLIENT.get_session_context() as db_session:
-                await LS.update_session_status(
-                    db_session, body.session_id, "completed"
-                )
+                for sid in all_session_ids:
+                    await LS.update_session_status(db_session, sid, "completed")
     finally:
         await release_redis_lock(body.project_id, lock_key)
 
-
-# =============================================================================
-# Retry queue for agent consumer (DLX pattern)
-# =============================================================================
-
-register_consumer(
-    config=ConsumerConfigData(
-        exchange_name=EX.learning_skill,
-        routing_key=RK.learning_skill_agent_retry,
-        queue_name="learning.skill.agent.retry.entry",
-        message_ttl_seconds=DEFAULT_CORE_CONFIG.skill_learn_agent_retry_delay_seconds,
-        need_dlx_queue=True,
-        use_dlx_ex_rk=(EX.learning_skill, RK.learning_skill_agent),
-    )
-)(SpecialHandler.NO_PROCESS)
+    if should_retrigger:
+        remaining = await drain_skill_learn_pending(
+            body.project_id, body.learning_space_id, max_read=1
+        )
+        if remaining:
+            await publish_mq(
+                exchange_name=EX.learning_skill,
+                routing_key=RK.learning_skill_agent,
+                body=remaining[0].model_dump_json(),
+            )
+            LOG.info(
+                f"Skill agent: remaining contexts in Redis, re-triggered agent "
+                f"for learning space {body.learning_space_id}"
+            )
