@@ -1,78 +1,38 @@
-import type { Root, Node as TreeNode } from 'fumadocs-core/page-tree';
+import { source } from '@/lib/source';
+import { PathUtils } from 'fumadocs-core/source';
+import type { Graph } from '@/components/graph-view';
 
-export interface GraphNode {
-  id: string;
-  text: string;
-  description?: string;
-  url: string;
-  neighbors?: string[];
-}
+export async function buildGraph(): Promise<Graph> {
+  const graph: Graph = { links: [], nodes: [] };
 
-export interface GraphLink {
-  source: string;
-  target: string;
-}
+  await Promise.all(
+    source.getPages().map(async (page) => {
+      if (page.data.type === 'openapi') return;
 
-export interface Graph {
-  nodes: GraphNode[];
-  links: GraphLink[];
-}
+      graph.nodes.push({
+        id: page.url,
+        url: page.url,
+        text: page.data.title,
+        description: page.data.description,
+      });
 
-export function buildGraph(tree: Root): Graph {
-  const nodes: GraphNode[] = [];
-  const links: GraphLink[] = [];
-  const seen = new Set<string>();
+      const data = await page.data.load();
+      const refs = (data as { extractedReferences?: { href: string }[] })
+        .extractedReferences ?? [];
 
-  function walk(items: TreeNode[], parentId?: string) {
-    for (const item of items) {
-      if (item.type === 'separator') continue;
+      const dir = PathUtils.dirname(page.path);
 
-      if (item.type === 'page') {
-        const id = item.url;
-        if (seen.has(id)) continue;
-        seen.add(id);
+      for (const ref of refs) {
+        const refPage = source.getPageByHref(ref.href, { dir });
+        if (!refPage) continue;
 
-        nodes.push({
-          id,
-          text: typeof item.name === 'string' ? item.name : String(item.name),
-          description: item.description
-            ? String(item.description)
-            : undefined,
-          url: item.url,
+        graph.links.push({
+          source: page.url,
+          target: refPage.page.url,
         });
-
-        if (parentId) {
-          links.push({ source: parentId, target: id });
-        }
       }
+    }),
+  );
 
-      if (item.type === 'folder') {
-        const folderId = item.index?.url ?? `folder-${item.name}`;
-
-        if (item.index && !seen.has(item.index.url)) {
-          seen.add(item.index.url);
-          nodes.push({
-            id: item.index.url,
-            text:
-              typeof item.name === 'string'
-                ? item.name
-                : String(item.name),
-            description: item.index.description
-              ? String(item.index.description)
-              : undefined,
-            url: item.index.url,
-          });
-        }
-
-        if (parentId && folderId !== parentId) {
-          links.push({ source: parentId, target: folderId });
-        }
-
-        walk(item.children, folderId);
-      }
-    }
-  }
-
-  walk(tree.children);
-  return { nodes, links };
+  return graph;
 }

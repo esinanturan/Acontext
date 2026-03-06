@@ -1,4 +1,3 @@
-import { source } from '@/lib/source';
 import { buildGraph } from '@/lib/build-graph';
 import { GraphView } from '@/components/graph-view';
 import type { Metadata } from 'next';
@@ -10,9 +9,8 @@ export const metadata: Metadata = {
   description: 'Visual graph of all documentation pages and their relationships',
 };
 
-export default function GraphPage() {
-  const tree = source.getPageTree();
-  const graph = buildGraph(tree);
+export default async function GraphPage() {
+  const graph = await buildGraph();
 
   return (
     <div className="flex flex-col gap-4 p-6 max-w-[1200px] mx-auto">

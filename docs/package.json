@@ -14,9 +14,12 @@
     "postinstall": "fumadocs-mdx"
   },
   "dependencies": {
+    "@ai-sdk/openai": "^3.0.41",
+    "@ai-sdk/react": "^3.0.118",
     "@next/third-parties": "^16.1.6",
     "@opennextjs/cloudflare": "^1.17.1",
     "@radix-ui/react-hover-card": "^1.1.15",
+    "ai": "^6.0.116",
     "d3-force": "^3.0.0",
     "fumadocs-core": "16.6.9",
     "fumadocs-mdx": "14.2.9",
@@ -28,8 +31,11 @@
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "react-force-graph-2d": "^1.29.1",
+    "react-markdown": "^10.1.0",
+    "remark-gfm": "^4.0.1",
     "shiki": "^4.0.1",
-    "tailwind-merge": "^3.5.0"
+    "tailwind-merge": "^3.5.0",
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.2.1",

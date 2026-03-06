@@ -3,17 +3,29 @@
 @import 'fumadocs-ui/css/preset.css';
 @import 'fumadocs-openapi/css/preset.css';
 
+@theme {
+  --color-brand: hsl(153, 60%, 53%);
+  --color-brand-foreground: white;
+  --color-brand-secondary: oklch(0.65 0.19 155);
+  --color-brand-secondary-foreground: white;
+}
+
 :root {
-  --fd-primary: 153 60% 53%;
-  --fd-primary-foreground: 0 0% 100%;
+  --color-fd-primary: var(--color-brand);
+  --color-fd-primary-foreground: var(--color-brand-foreground);
   --guides-color: oklch(0.65 0.19 155);
   --api-reference-color: oklch(0.65 0.19 250);
   --integrations-color: oklch(0.65 0.19 30);
 }
 
 .dark {
-  --fd-primary: 153 55% 60%;
-  --fd-primary-foreground: 0 0% 100%;
+  --color-brand: hsl(153, 55%, 60%);
+  --color-brand-foreground: black;
+  --color-brand-secondary: oklch(0.75 0.17 155);
+  --color-brand-secondary-foreground: black;
+
+  --color-fd-primary: var(--color-brand);
+  --color-fd-primary-foreground: var(--color-brand-foreground);
   --guides-color: oklch(0.75 0.17 155);
   --api-reference-color: oklch(0.75 0.17 250);
   --integrations-color: oklch(0.75 0.17 30);

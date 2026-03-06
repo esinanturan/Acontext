@@ -72,7 +72,7 @@ export function NotFound({ slug }: { slug?: string[] }) {
         ) : (
           <Link
             href="/"
-            className="inline-flex items-center justify-center rounded-lg border bg-fd-secondary px-4 py-2 text-sm font-medium transition-colors hover:bg-fd-accent"
+            className="inline-flex items-center justify-center rounded-lg border bg-fd-secondary px-4 py-2 text-sm font-medium transition-colors hover:bg-fd-accent hover:text-fd-accent-foreground"
           >
             Return to Home
           </Link>

@@ -1,7 +1,10 @@
-import { RootProvider } from 'fumadocs-ui/provider/next';
+import { TreeContextProvider } from 'fumadocs-ui/contexts/tree';
+import { NextProvider } from 'fumadocs-core/framework/next';
 import { GoogleAnalytics, GoogleTagManager } from '@next/third-parties/google';
 import type { ReactNode } from 'react';
 import type { Metadata } from 'next';
+import { Providers } from '@/components/providers';
+import { source } from '@/lib/source';
 import './global.css';
 
 export const metadata: Metadata = {
@@ -21,15 +24,11 @@ export default function Layout({ children }: { children: ReactNode }) {
       <body className="flex min-h-screen flex-col">
         <GoogleTagManager gtmId="GTM-KQ7H272M" />
         <GoogleAnalytics gaId="G-Y2R02LY9NV" />
-        <RootProvider
-          search={{
-            options: {
-              type: 'static',
-            },
-          }}
-        >
-          {children}
-        </RootProvider>
+        <NextProvider>
+          <TreeContextProvider tree={source.getPageTree()}>
+            <Providers>{children}</Providers>
+          </TreeContextProvider>
+        </NextProvider>
       </body>
     </html>
   );

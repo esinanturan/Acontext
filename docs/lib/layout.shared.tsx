@@ -1,5 +1,5 @@
 import type { BaseLayoutProps } from "fumadocs-ui/layouts/shared";
-import { BookIcon, Github, HomeIcon } from "lucide-react";
+import { BookIcon, Github, HomeIcon, Network } from "lucide-react";
 import { DiscordIcon } from "@/components/icons";
 
 export function baseOptions(): BaseLayoutProps {
@@ -41,6 +41,11 @@ export function baseOptions(): BaseLayoutProps {
         text: "Blog",
         url: "https://blog.acontext.io",
         icon: <BookIcon />,
+      },
+      {
+        text: "Graph",
+        url: "/graph",
+        icon: <Network />,
       },
     ],
   };
