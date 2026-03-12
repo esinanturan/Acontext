@@ -121,6 +121,25 @@ describe("readTranscriptMessages", () => {
     expect(msgs).toHaveLength(2);
   });
 
+  it("warns about malformed JSON lines when warn callback is provided", async () => {
+    const filePath = path.join(tmpDir, "bad-warn.jsonl");
+    await fs.writeFile(
+      filePath,
+      [
+        '{"message":{"role":"user","content":"a"}}',
+        "{bad json",
+        '{"message":{"role":"assistant","content":"b"}}',
+      ].join("\n"),
+    );
+    const warn = vi.fn();
+    const msgs = await readTranscriptMessages(filePath, warn);
+    expect(msgs).toHaveLength(2);
+    expect(warn).toHaveBeenCalledOnce();
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining("skipping malformed transcript line"),
+    );
+  });
+
   it("skips blank lines", async () => {
     const filePath = path.join(tmpDir, "blanks.jsonl");
     await fs.writeFile(

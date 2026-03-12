@@ -54,7 +54,7 @@ export async function readTranscriptMessages(
           });
         }
       } catch {
-        // skip malformed lines
+        warn?.(`acontext: skipping malformed transcript line: ${line.substring(0, 200)}`);
       }
     }
   } catch (err: any) {

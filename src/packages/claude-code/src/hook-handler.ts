@@ -165,6 +165,11 @@ async function handleStop(
   }
 
   try {
+    // Wait briefly for the transcript file to be fully flushed — the Stop hook
+    // fires right after the assistant finishes, but the final JSONL line may
+    // not have been written/flushed to disk yet.
+    await new Promise((r) => setTimeout(r, 1000));
+
     if (locked) {
       // Re-load state under lock to get latest lastProcessedIndex
       await bridge.loadSessionState();
@@ -236,10 +241,68 @@ async function handleStop(
   }
 }
 
+async function handleNotification(
+  bridge: AcontextBridge,
+  lockDir: string,
+): Promise<void> {
+  // Notification fires after Stop — use it as a supplementary capture point
+  // to pick up any messages the Stop handler may have missed (e.g. final
+  // assistant response not yet flushed to transcript at Stop time).
+  const raw = await readStdin();
+  const data = parseStdinJson(raw, logger.warn);
+
+  const locked = await acquireLock(lockDir);
+  if (!locked) {
+    logger.info("acontext: notification: another hook process is active, skipping");
+    return;
+  }
+
+  try {
+    let sessionId = bridge.getSessionId();
+    if (!sessionId) {
+      const restored = await bridge.loadSessionState();
+      if (!restored) return;
+      sessionId = bridge.getSessionId();
+    }
+    if (!sessionId) return;
+
+    const transcriptPath = data?.transcript_path as string | undefined;
+    if (!transcriptPath) return;
+
+    const allRawMessages = await readTranscriptMessages(transcriptPath, logger.warn);
+    if (allRawMessages.length === 0) return;
+
+    const lastIdx = bridge.getLastProcessedIndex();
+    const newRaw = allRawMessages.slice(lastIdx);
+    if (newRaw.length === 0) return;
+
+    const { messages: merged, rawCounts } = mergeConsecutiveMessages(newRaw);
+    const { stored, processed } = await bridge.storeMessages(
+      sessionId,
+      merged,
+      lastIdx,
+    );
+    if (processed > 0) {
+      const rawProcessed = rawCounts
+        .slice(0, processed)
+        .reduce((a, b) => a + b, 0);
+      bridge.setLastProcessedIndex(lastIdx + rawProcessed);
+    }
+    if (stored > 0) {
+      logger.info(`acontext: notification: captured ${stored} supplementary messages`);
+    }
+    if (processed > 0) {
+      await bridge.saveSessionState();
+    }
+  } finally {
+    await releaseLock(lockDir);
+  }
+}
+
 async function main(): Promise<void> {
   const command = process.argv[2];
   if (!command) {
-    console.error("Usage: hook-handler.cjs <session-start|post-tool-use|stop>");
+    console.error("Usage: hook-handler.cjs <session-start|post-tool-use|stop|notification>");
     process.exit(1);
   }
 
@@ -269,6 +332,9 @@ async function main(): Promise<void> {
       break;
     case "stop":
       await handleStop(bridge, config, lockDir);
+      break;
+    case "notification":
+      await handleNotification(bridge, lockDir);
       break;
     default:
       console.error(`Unknown command: ${command}`);
