@@ -65,8 +65,9 @@ jobs:
 
       - name: Check if version exists on npm
         id: check_version
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
-          VERSION="${{ steps.version.outputs.version }}"
           if npm view "@acontext/create-sandbox-cloudflare@$VERSION" version > /dev/null 2>&1; then
             echo "exists=true" >> "$GITHUB_OUTPUT"
             echo "Version $VERSION already exists on npm"
@@ -85,8 +86,10 @@ jobs:
 
       - name: Publish skipped (version exists)
         if: steps.check_version.outputs.exists == 'true'
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
-          echo "⏭️  Publishing skipped - version ${{ steps.version.outputs.version }} already exists on npm"
+          echo "Publishing skipped - version $VERSION already exists on npm"
 
   create-release:
     name: Create GitHub Release
@@ -101,31 +104,32 @@ jobs:
 
       - name: Extract version from tag
         id: version
+        env:
+          GIT_REF: ${{ github.ref }}
         run: |
-          TAG_NAME=${GITHUB_REF#refs/tags/package-sandbox-cloudflare/v}
+          TAG_NAME=${GIT_REF#refs/tags/package-sandbox-cloudflare/v}
           echo "version=$TAG_NAME" >> "$GITHUB_OUTPUT"
 
       - name: Generate Changelog
         env:
           VERSION: ${{ steps.version.outputs.version }}
+          CHANGELOG_OUTPUT: ${{ github.workspace }}-CHANGELOG.txt
         run: |
-          FOOTER=$(cat <<FOOTEREOF
-Published to npm as @acontext/create-sandbox-cloudflare@${VERSION}
-
-## Usage
-
-\`\`\`bash
-npm create @acontext/sandbox-cloudflare@${VERSION} my-app
-# or
-npx @acontext/create-sandbox-cloudflare@${VERSION} my-app
-\`\`\`
-FOOTEREOF
-          )
+          FOOTER=$(printf '%s\n' \
+            "Published to npm as @acontext/create-sandbox-cloudflare@${VERSION}" \
+            "" \
+            "## Usage" \
+            "" \
+            '```bash' \
+            "npm create @acontext/sandbox-cloudflare@${VERSION} my-app" \
+            "# or" \
+            "npx @acontext/create-sandbox-cloudflare@${VERSION} my-app" \
+            '```')
           bash .github/scripts/generate-changelog.sh \
             --tag-prefix "package-sandbox-cloudflare/v" \
             --source-dir "src/packages/sandbox-cloudflare" \
             --display-name "Package Sandbox Cloudflare" \
-            --output "${{ github.workspace }}-CHANGELOG.txt" \
+            --output "$CHANGELOG_OUTPUT" \
             --footer "$FOOTER"
 
       - name: Create Release

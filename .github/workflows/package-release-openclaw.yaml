@@ -111,22 +111,21 @@ jobs:
       - name: Generate Changelog
         env:
           VERSION: ${{ steps.version.outputs.version }}
+          CHANGELOG_OUTPUT: ${{ github.workspace }}-CHANGELOG.txt
         run: |
-          FOOTER=$(cat <<FOOTEREOF
-Published to npm as @acontext/openclaw@${VERSION}
-
-## Installation
-
-\`\`\`bash
-openclaw plugins install @acontext/openclaw@${VERSION}
-\`\`\`
-FOOTEREOF
-          )
+          FOOTER=$(printf '%s\n' \
+            "Published to npm as @acontext/openclaw@${VERSION}" \
+            "" \
+            "## Installation" \
+            "" \
+            '```bash' \
+            "openclaw plugins install @acontext/openclaw@${VERSION}" \
+            '```')
           bash .github/scripts/generate-changelog.sh \
             --tag-prefix "package-openclaw/v" \
             --source-dir "src/packages/openclaw" \
             --display-name "OpenClaw Plugin" \
-            --output "${{ github.workspace }}-CHANGELOG.txt" \
+            --output "$CHANGELOG_OUTPUT" \
             --footer "$FOOTER"
 
       - name: Create Release

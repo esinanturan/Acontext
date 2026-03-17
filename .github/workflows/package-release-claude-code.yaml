@@ -134,25 +134,25 @@ jobs:
           echo "version=$TAG_NAME" >> "$GITHUB_OUTPUT"
 
       - name: Generate Changelog
+        env:
+          CHANGELOG_OUTPUT: ${{ github.workspace }}-CHANGELOG.txt
         run: |
-          FOOTER=$(cat <<'FOOTEREOF'
-## Installation
-
-```bash
-claude mcp add-from-marketplace acontext --publisher memodb-io
-```
-
-## Release Checklist
-- [x] Version synced across package.json, plugin.json, marketplace.json
-- [x] Tests passed
-- [x] Plugin bundles built and verified
-FOOTEREOF
-          )
+          FOOTER=$(printf '%s\n' \
+            "## Installation" \
+            "" \
+            '```bash' \
+            "claude mcp add-from-marketplace acontext --publisher memodb-io" \
+            '```' \
+            "" \
+            "## Release Checklist" \
+            "- [x] Version synced across package.json, plugin.json, marketplace.json" \
+            "- [x] Tests passed" \
+            "- [x] Plugin bundles built and verified")
           bash .github/scripts/generate-changelog.sh \
             --tag-prefix "package-claude-code/v" \
             --source-dir "src/packages/claude-code" \
             --display-name "Claude Code Plugin" \
-            --output "${{ github.workspace }}-CHANGELOG.txt" \
+            --output "$CHANGELOG_OUTPUT" \
             --footer "$FOOTER"
 
       - name: Create Release
