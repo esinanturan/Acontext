@@ -1043,7 +1043,7 @@ func TestLearningSpaceService_GetSession(t *testing.T) {
 	})
 
 	t.Run("non-pending statuses skip resolution", func(t *testing.T) {
-		for _, status := range []string{"running", "completed", "failed", "queued"} {
+		for _, status := range []string{"distilling", "completed", "failed", "queued"} {
 			t.Run(status, func(t *testing.T) {
 				m := newLSMocks()
 				m.lsRepo.On("GetByID", ctx, projectID, lsID).Return(&model.LearningSpace{ID: lsID, ProjectID: projectID}, nil)
@@ -1166,7 +1166,7 @@ func TestLearningSpaceService_ListSessions(t *testing.T) {
 		m.lsSessRepo.On("ListBySpaceID", ctx, lsID).Return([]*model.LearningSpaceSession{
 			{ID: uuid.New(), LearningSpaceID: lsID, SessionID: sess1ID, Status: "pending"},
 			{ID: uuid.New(), LearningSpaceID: lsID, SessionID: sess2ID, Status: "completed"},
-			{ID: uuid.New(), LearningSpaceID: lsID, SessionID: sess3ID, Status: "running"},
+			{ID: uuid.New(), LearningSpaceID: lsID, SessionID: sess3ID, Status: "distilling"},
 		}, nil)
 		// Only sess1 (pending) triggers resolution checks
 		m.sessionRepo.On("HasUnfinishedMessages", ctx, sess1ID).Return(false, nil)
@@ -1180,7 +1180,7 @@ func TestLearningSpaceService_ListSessions(t *testing.T) {
 		assert.Len(t, result, 3)
 		assert.Equal(t, "completed", result[0].Status)
 		assert.Equal(t, "completed", result[1].Status)
-		assert.Equal(t, "running", result[2].Status)
+		assert.Equal(t, "distilling", result[2].Status)
 	})
 
 	t.Run("all sessions already resolved — no Has* calls", func(t *testing.T) {

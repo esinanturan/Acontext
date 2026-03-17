@@ -45,7 +45,7 @@ async def process_skill_distillation(body: SkillLearnTask, message: Message):
             )
             return
 
-        await LS.update_session_status(db_session, body.session_id, "running")
+        await LS.update_session_status(db_session, body.session_id, "distilling")
 
     learning_space_id = ls_session.learning_space_id
 
@@ -116,7 +116,6 @@ async def process_skill_agent(body: SkillLearnDistilled, message: Message):
             await LS.update_session_status(db_session, body.session_id, "queued")
         return
 
-    should_retrigger = False
     try:
         r = await SLC.run_skill_agent(
             body.project_id,
@@ -134,7 +133,6 @@ async def process_skill_agent(body: SkillLearnDistilled, message: Message):
             async with DB_CLIENT.get_session_context() as db_session:
                 await LS.update_session_status(db_session, body.session_id, "failed")
         else:
-            should_retrigger = True
             all_session_ids = [body.session_id] + (drained_session_ids or [])
             all_session_ids = list(set(all_session_ids))
             async with DB_CLIENT.get_session_context() as db_session:
@@ -148,18 +146,23 @@ async def process_skill_agent(body: SkillLearnDistilled, message: Message):
             await LS.update_session_status(db_session, body.session_id, "failed")
     finally:
         await release_redis_lock(body.project_id, lock_key)
-
-    if should_retrigger:
-        remaining = await drain_skill_learn_pending(
-            body.project_id, body.learning_space_id, max_read=1
-        )
-        if remaining:
-            await publish_mq(
-                exchange_name=EX.learning_skill,
-                routing_key=RK.learning_skill_agent,
-                body=remaining[0].model_dump_json(),
+        try:
+            remaining = await drain_skill_learn_pending(
+                body.project_id, body.learning_space_id, max_read=1
             )
-            LOG.info(
-                f"Skill agent: remaining contexts in Redis, re-triggered agent "
-                f"for learning space {body.learning_space_id}"
+            if remaining:
+                await publish_mq(
+                    exchange_name=EX.learning_skill,
+                    routing_key=RK.learning_skill_agent,
+                    body=remaining[0].model_dump_json(),
+                )
+                LOG.info(
+                    f"Skill agent: re-triggered 1 pending context "
+                    f"for learning space {body.learning_space_id}"
+                )
+        except Exception:
+            LOG.error(
+                f"Skill agent: failed to retrigger pending contexts "
+                f"for learning space {body.learning_space_id}",
+                exc_info=True,
             )

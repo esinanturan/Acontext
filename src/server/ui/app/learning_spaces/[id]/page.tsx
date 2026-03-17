@@ -427,7 +427,7 @@ export default function LearningSpaceDetailPage() {
                           variant={
                             session.status === "completed"
                               ? "default"
-                              : session.status === "running"
+                              : session.status === "distilling"
                                 ? "secondary"
                                 : session.status === "failed"
                                   ? "destructive"

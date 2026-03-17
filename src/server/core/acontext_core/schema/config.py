@@ -37,7 +37,7 @@ class CoreConfig(BaseModel):
         240  # 4 min — agent phase only (5 iters × ~40s + 20% headroom)
     )
     skill_learn_extra_iterations_per_context_batch: int = 8
-    skill_learn_max_contexts_per_agent_run: int = 8
+    skill_learn_max_contexts_per_agent_run: int = 4
     skill_learn_agent_consumer_timeout: int = 600
 
     # MQ Configuration

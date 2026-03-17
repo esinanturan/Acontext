@@ -325,7 +325,7 @@ export function LearningSpaceDetailClient({
     switch (status) {
       case "completed":
         return "default" as const;
-      case "running":
+      case "distilling":
         return "secondary" as const;
       case "failed":
         return "destructive" as const;

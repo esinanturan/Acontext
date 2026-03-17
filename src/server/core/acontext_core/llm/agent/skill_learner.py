@@ -192,12 +192,20 @@ async def skill_learner_agent(
             if lock_key and lock_ttl_seconds:
                 await renew_redis_lock(project_id, lock_key, lock_ttl_seconds)
 
-    except Exception as e:
-        # Re-push all drained items so the next agent picks them up
+    except BaseException as e:
         for item in drained_items:
-            await push_skill_learn_pending(
-                project_id, learning_space_id, item.model_dump_json()
-            )
-        return Result.reject(str(e))
+            try:
+                await push_skill_learn_pending(
+                    project_id, learning_space_id, item.model_dump_json()
+                )
+            except Exception:
+                LOG.error(
+                    f"Skill Learner: failed to re-push drained item "
+                    f"{item.session_id} on error recovery",
+                    exc_info=True,
+                )
+        if isinstance(e, Exception):
+            return Result.reject(str(e))
+        raise
 
     return Result.resolve([item.session_id for item in drained_items])

@@ -565,6 +565,59 @@ class TestAgentErrorHandling:
             _, error = result.unpack()
             assert "not found" in error.errmsg.lower()
 
+    @pytest.mark.asyncio
+    async def test_cancelled_error_repushes_drained_items(self):
+        """Agent re-pushes all drained items to Redis on CancelledError and re-raises."""
+        import asyncio
+
+        project_id = uuid.uuid4()
+        ls_id = uuid.uuid4()
+
+        pending = _make_distilled(
+            project_id=project_id,
+            learning_space_id=ls_id,
+        )
+
+        drain_calls = [0]
+
+        async def mock_drain(pid, lsid, **kwargs):
+            drain_calls[0] += 1
+            if drain_calls[0] == 1:
+                return [pending]
+            return []
+
+        with (
+            patch("acontext_core.llm.agent.skill_learner.DB_CLIENT") as mock_db,
+            patch(
+                "acontext_core.llm.agent.skill_learner.llm_complete",
+                new_callable=AsyncMock,
+                side_effect=asyncio.CancelledError(),
+            ),
+            patch(
+                "acontext_core.llm.agent.skill_learner.drain_skill_learn_pending",
+                new_callable=AsyncMock,
+                side_effect=mock_drain,
+            ),
+            patch(
+                "acontext_core.llm.agent.skill_learner.push_skill_learn_pending",
+                new_callable=AsyncMock,
+            ) as mock_push,
+        ):
+            _setup_db_mock(mock_db)
+
+            with pytest.raises(asyncio.CancelledError):
+                await skill_learner_agent(
+                    project_id=project_id,
+                    learning_space_id=ls_id,
+                    user_id=uuid.uuid4(),
+                    skills_info=[],
+                    distilled_context="## Task Analysis\nInitial",
+                )
+
+            mock_push.assert_called_once_with(
+                project_id, ls_id, pending.model_dump_json()
+            )
+
 
 # =============================================================================
 # State preservation across iterations
