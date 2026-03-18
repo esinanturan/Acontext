@@ -20,14 +20,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  Pagination,
-  PaginationContent,
-  PaginationItem,
-  PaginationLink,
-  PaginationNext,
-  PaginationPrevious,
-} from "@/components/ui/pagination";
+import { PaginationBar } from "@/components/pagination-bar";
 import { Loader2, RefreshCw, ArrowLeft, ChevronDown, ChevronUp } from "lucide-react";
 import { getTasks, getSessionConfigs } from "@/app/session/actions";
 import { Task } from "@/types";
@@ -40,6 +33,7 @@ const PAGE_SIZE = 10;
 
 export default function TasksPage() {
   const t = useTranslations("session");
+  const tp = useTranslations("pagination");
   const params = useParams();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -49,6 +43,7 @@ export default function TasksPage() {
   const [sessionInfo, setSessionInfo] = useState<string>("");
   const [allTasks, setAllTasks] = useState<Task[]>([]);
   const [isLoadingTasks, setIsLoadingTasks] = useState(false);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [isRefreshingTasks, setIsRefreshingTasks] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
 
@@ -79,27 +74,35 @@ export default function TasksPage() {
   const loadAllTasks = async () => {
     try {
       setIsLoadingTasks(true);
-      const allTsks: Task[] = [];
-      let cursor: string | undefined = undefined;
-      let hasMore = true;
 
-      while (hasMore) {
-        const res = await getTasks(sessionId, 50, cursor);
-        if (res.code !== 0) {
-          console.error(res.message);
-          break;
-        }
-        allTsks.push(...(res.data?.items || []));
-        cursor = res.data?.next_cursor;
-        hasMore = res.data?.has_more || false;
+      const first = await getTasks(sessionId, 50, undefined);
+      if (first.code !== 0) {
+        console.error(first.message);
+        setIsLoadingTasks(false);
+        return;
       }
-
-      setAllTasks(allTsks);
+      setAllTasks(first.data?.items || []);
       setCurrentPage(1);
+      setIsLoadingTasks(false);
+
+      if (first.data?.has_more) {
+        setIsLoadingMore(true);
+        let cursor = first.data?.next_cursor;
+        while (cursor) {
+          const res = await getTasks(sessionId, 50, cursor);
+          if (res.code !== 0) {
+            console.error(res.message);
+            break;
+          }
+          setAllTasks(prev => [...prev, ...(res.data?.items || [])]);
+          cursor = res.data?.has_more ? res.data?.next_cursor : undefined;
+        }
+        setIsLoadingMore(false);
+      }
     } catch (error) {
       console.error("Failed to load tasks:", error);
-    } finally {
       setIsLoadingTasks(false);
+      setIsLoadingMore(false);
     }
   };
 
@@ -290,65 +293,14 @@ export default function TasksPage() {
                 </Table>
               </div>
 
-              {totalPages > 1 && (
-                <div className="border-t p-4">
-                  <Pagination>
-                    <PaginationContent>
-                      <PaginationItem>
-                        <PaginationPrevious
-                          onClick={() =>
-                            setCurrentPage((p) => Math.max(1, p - 1))
-                          }
-                          className={
-                            currentPage === 1
-                              ? "pointer-events-none opacity-50"
-                              : "cursor-pointer"
-                          }
-                        />
-                      </PaginationItem>
-                      {Array.from({ length: totalPages }, (_, i) => i + 1)
-                        .filter(
-                          (page) =>
-                            page === 1 ||
-                            page === totalPages ||
-                            Math.abs(page - currentPage) <= 1
-                        )
-                        .map((page, idx, arr) => {
-                          const showEllipsisBefore =
-                            idx > 0 && page - arr[idx - 1] > 1;
-                          return (
-                            <div key={page} className="flex items-center">
-                              {showEllipsisBefore && (
-                                <span className="px-2">...</span>
-                              )}
-                              <PaginationItem>
-                                <PaginationLink
-                                  onClick={() => setCurrentPage(page)}
-                                  isActive={currentPage === page}
-                                  className="cursor-pointer"
-                                >
-                                  {page}
-                                </PaginationLink>
-                              </PaginationItem>
-                            </div>
-                          );
-                        })}
-                      <PaginationItem>
-                        <PaginationNext
-                          onClick={() =>
-                            setCurrentPage((p) => Math.min(totalPages, p + 1))
-                          }
-                          className={
-                            currentPage === totalPages
-                              ? "pointer-events-none opacity-50"
-                              : "cursor-pointer"
-                          }
-                        />
-                      </PaginationItem>
-                    </PaginationContent>
-                  </Pagination>
-                </div>
-              )}
+              <PaginationBar
+                currentPage={currentPage}
+                totalPages={totalPages}
+                totalItems={allTasks.length}
+                onPageChange={setCurrentPage}
+                itemLabel={tp("tasks")}
+                isLoading={isLoadingMore}
+              />
           </>
         )}
       </div>

@@ -33,6 +33,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Loader2, Plus, RefreshCw } from "lucide-react";
+import { PaginationBar } from "@/components/pagination-bar";
 import {
   getSessions,
   createSession,
@@ -47,18 +48,23 @@ import { json } from "@codemirror/lang-json";
 import { EditorView } from "@codemirror/view";
 import { Checkbox } from "@/components/ui/checkbox";
 
+const PAGE_SIZE = 20;
+
 export default function SessionsPage() {
   const t = useTranslations("session");
+  const tp = useTranslations("pagination");
   const router = useRouter();
   const { resolvedTheme } = useTheme();
 
   const [sessions, setSessions] = useState<Session[]>([]);
   const [selectedSession, setSelectedSession] = useState<Session | null>(null);
   const [isLoadingSessions, setIsLoadingSessions] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [isCreatingSession, setIsCreatingSession] = useState(false);
   const [isRefreshingSessions, setIsRefreshingSessions] = useState(false);
   const [sessionFilterText, setSessionFilterText] = useState("");
   const [userFilter, setUserFilter] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
 
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [sessionToDelete, setSessionToDelete] = useState<Session | null>(null);
@@ -87,36 +93,56 @@ export default function SessionsPage() {
     return matchesId;
   });
 
+  const totalPages = Math.ceil(filteredSessions.length / PAGE_SIZE);
+  const paginatedSessions = filteredSessions.slice(
+    (currentPage - 1) * PAGE_SIZE,
+    currentPage * PAGE_SIZE
+  );
+
   const loadSessions = async () => {
     try {
       setIsLoadingSessions(true);
 
-      const allSsns: Session[] = [];
-      let cursor: string | undefined = undefined;
-      let hasMore = true;
-
-      while (hasMore) {
-        const res = await getSessions(
-          userFilter || undefined,
-          undefined,
-          50,
-          cursor,
-          true
-        );
-        if (res.code !== 0) {
-          console.error(res.message);
-          break;
-        }
-        allSsns.push(...(res.data?.items || []));
-        cursor = res.data?.next_cursor;
-        hasMore = res.data?.has_more || false;
+      const first = await getSessions(
+        userFilter || undefined,
+        undefined,
+        50,
+        undefined,
+        true
+      );
+      if (first.code !== 0) {
+        console.error(first.message);
+        setIsLoadingSessions(false);
+        return;
       }
+      setSessions(first.data?.items || []);
+      setCurrentPage(1);
+      setIsLoadingSessions(false);
 
-      setSessions(allSsns);
+      if (first.data?.has_more) {
+        setIsLoadingMore(true);
+        let cursor = first.data?.next_cursor;
+        while (cursor) {
+          const res = await getSessions(
+            userFilter || undefined,
+            undefined,
+            50,
+            cursor,
+            true
+          );
+          if (res.code !== 0) {
+            console.error(res.message);
+            break;
+          }
+          setSessions(prev => [...prev, ...(res.data?.items || [])]);
+          cursor = res.data?.has_more ? res.data?.next_cursor : undefined;
+        }
+        setIsLoadingMore(false);
+      }
     } catch (error) {
       console.error("Failed to load sessions:", error);
-    } finally {
       setIsLoadingSessions(false);
+      setIsLoadingMore(false);
     }
   };
 
@@ -357,7 +383,10 @@ export default function SessionsPage() {
             type="text"
             placeholder={t("filterById")}
             value={sessionFilterText}
-            onChange={(e) => setSessionFilterText(e.target.value)}
+            onChange={(e) => {
+              setSessionFilterText(e.target.value);
+              setCurrentPage(1);
+            }}
             className="max-w-sm"
           />
         </div>
@@ -375,7 +404,8 @@ export default function SessionsPage() {
             </p>
           </div>
         ) : (
-          <div className="overflow-auto">
+          <>
+          <div className="overflow-auto flex-1">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -386,7 +416,7 @@ export default function SessionsPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredSessions.map((session) => (
+                {paginatedSessions.map((session) => (
                   <TableRow
                     key={session.id}
                     className="cursor-pointer"
@@ -449,6 +479,15 @@ export default function SessionsPage() {
               </TableBody>
             </Table>
           </div>
+          <PaginationBar
+            currentPage={currentPage}
+            totalPages={totalPages}
+            totalItems={filteredSessions.length}
+            onPageChange={setCurrentPage}
+            itemLabel={tp("sessions")}
+            isLoading={isLoadingMore}
+          />
+          </>
         )}
       </div>
 

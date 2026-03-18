@@ -24,9 +24,12 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Loader2, RefreshCw, AlertTriangle } from "lucide-react";
+import { PaginationBar } from "@/components/pagination-bar";
 import { Organization, Project, User, UserResourceCounts } from "@/types";
 import { getUsers, deleteUser, getUserResources } from "./actions";
 import { toast } from "sonner";
+
+const PAGE_SIZE = 20;
 
 interface UserPageClientProps {
   project: Project;
@@ -64,11 +67,10 @@ export function UserPageClient({
   }, [project, currentOrganization, allOrganizations, projects, initialize, setHasSidebar]);
   const [users, setUsers] = useState<UserWithCounts[]>([]);
   const [isLoadingUsers, setIsLoadingUsers] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [isRefreshingUsers, setIsRefreshingUsers] = useState(false);
   const [userFilterText, setUserFilterText] = useState("");
-  const [nextCursor, setNextCursor] = useState<string | undefined>(undefined);
-  const [hasMoreUsers, setHasMoreUsers] = useState(false);
-  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
 
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [userToDelete, setUserToDelete] = useState<UserWithCounts | null>(null);
@@ -80,18 +82,39 @@ export function UserPageClient({
     user.identifier.toLowerCase().includes(userFilterText.toLowerCase())
   );
 
+  const totalPages = Math.ceil(filteredUsers.length / PAGE_SIZE);
+  const paginatedUsers = filteredUsers.slice(
+    (currentPage - 1) * PAGE_SIZE,
+    currentPage * PAGE_SIZE
+  );
+
   const loadUsers = useCallback(async () => {
     try {
       setIsLoadingUsers(true);
-      const res = await getUsers(project.id, 50, undefined, false);
-      // Initialize users without counts
-      setUsers(res.items.map((u) => ({ ...u, loadingCounts: true })));
-      setNextCursor(res.next_cursor);
-      setHasMoreUsers(res.has_more || false);
 
-      // Load counts for each user
+      const allUsers: User[] = [];
+      const first = await getUsers(project.id, 50, undefined, false);
+      allUsers.push(...(first.items || []));
+      setUsers(allUsers.map((u) => ({ ...u, loadingCounts: true })));
+      setCurrentPage(1);
+      setIsLoadingUsers(false);
+
+      if (first.has_more) {
+        setIsLoadingMore(true);
+        let cursor = first.next_cursor;
+        while (cursor) {
+          const res = await getUsers(project.id, 50, cursor, false);
+          const newUsers = res.items || [];
+          allUsers.push(...newUsers);
+          setUsers(allUsers.map((u) => ({ ...u, loadingCounts: true })));
+          cursor = res.has_more ? res.next_cursor : undefined;
+        }
+        setIsLoadingMore(false);
+      }
+
+      // Load counts for all users
       const usersWithCounts = await Promise.all(
-        res.items.map(async (user) => {
+        allUsers.map(async (user) => {
           try {
             const countsRes = await getUserResources(project.id, user.identifier);
             return { ...user, counts: countsRes.counts, loadingCounts: false };
@@ -104,54 +127,10 @@ export function UserPageClient({
     } catch (error) {
       console.error("Failed to load users:", error);
       toast.error("Failed to load users");
-    } finally {
       setIsLoadingUsers(false);
-    }
-  }, [project.id]);
-
-  const loadMoreUsers = useCallback(async () => {
-    if (!nextCursor || isLoadingMore) return;
-
-    try {
-      setIsLoadingMore(true);
-      const res = await getUsers(project.id, 50, nextCursor, false);
-
-      // Add new users with loading state
-      const newUsersWithLoadingState = res.items.map((u) => ({
-        ...u,
-        loadingCounts: true
-      }));
-      setUsers((prev) => [...prev, ...newUsersWithLoadingState]);
-      setNextCursor(res.next_cursor);
-      setHasMoreUsers(res.has_more || false);
-
-      // Load counts for new users only
-      const newUsersWithCounts = await Promise.all(
-        res.items.map(async (user) => {
-          try {
-            const countsRes = await getUserResources(project.id, user.identifier);
-            return { ...user, counts: countsRes.counts, loadingCounts: false };
-          } catch {
-            return { ...user, loadingCounts: false };
-          }
-        })
-      );
-
-      // Update only the new users with their counts
-      setUsers((prev) => {
-        const existingCount = prev.length - res.items.length;
-        return [
-          ...prev.slice(0, existingCount),
-          ...newUsersWithCounts
-        ];
-      });
-    } catch (error) {
-      console.error("Failed to load more users:", error);
-      toast.error("Failed to load more users");
-    } finally {
       setIsLoadingMore(false);
     }
-  }, [project.id, nextCursor, isLoadingMore]);
+  }, [project.id]);
 
   useEffect(() => {
     loadUsers();
@@ -259,7 +238,10 @@ export function UserPageClient({
             type="text"
             placeholder="Filter by identifier"
             value={userFilterText}
-            onChange={(e) => setUserFilterText(e.target.value)}
+            onChange={(e) => {
+              setUserFilterText(e.target.value);
+              setCurrentPage(1);
+            }}
             className="max-w-sm"
           />
         </div>
@@ -278,7 +260,7 @@ export function UserPageClient({
           </div>
         ) : (
           <>
-            <div className="overflow-auto">
+            <div className="overflow-auto flex-1">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -291,7 +273,7 @@ export function UserPageClient({
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredUsers.map((user) => (
+                  {paginatedUsers.map((user) => (
                     <TableRow key={user.id}>
                       <TableCell className="font-mono">{user.identifier}</TableCell>
                       <TableCell className="text-center">
@@ -359,24 +341,14 @@ export function UserPageClient({
                 </TableBody>
               </Table>
             </div>
-            {hasMoreUsers && !userFilterText && (
-              <div className="p-4 flex justify-center border-t">
-                <Button
-                  variant="outline"
-                  onClick={loadMoreUsers}
-                  disabled={isLoadingMore}
-                >
-                  {isLoadingMore ? (
-                    <>
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      Loading...
-                    </>
-                  ) : (
-                    "Load More"
-                  )}
-                </Button>
-              </div>
-            )}
+            <PaginationBar
+              currentPage={currentPage}
+              totalPages={totalPages}
+              totalItems={filteredUsers.length}
+              onPageChange={setCurrentPage}
+              itemLabel="users"
+              isLoading={isLoadingMore}
+            />
           </>
         )}
       </div>

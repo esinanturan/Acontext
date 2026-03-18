@@ -70,6 +70,7 @@ import {
   getAllowedPartTypes,
 } from "@/lib/message-utils";
 import { CodeEditor } from "@/components/code-editor";
+import { PaginationBar } from "@/components/pagination-bar";
 import type { MessageRole, PartType, UploadedFile, ToolCall, ToolResult } from "@/types";
 import { formatBytes } from "@/lib/utils";
 
@@ -240,6 +241,7 @@ export function MessagesPageClient({
   const [allMessages, setAllMessages] = useState<Message[]>([]);
   const [allEvents, setAllEvents] = useState<SessionEvent[]>([]);
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
+  const [isLoadingMoreMessages, setIsLoadingMoreMessages] = useState(false);
   const [isRefreshingMessages, setIsRefreshingMessages] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
 
@@ -301,26 +303,33 @@ export function MessagesPageClient({
   const loadAllMessages = async () => {
     try {
       setIsLoadingMessages(true);
-      const allMsgs: Message[] = [];
       const allEvts: SessionEvent[] = [];
       const allPublicUrls: Record<string, { url: string; expire_at: string }> = {};
-      let cursor: string | undefined = undefined;
-      let hasMore = true;
 
-      while (hasMore) {
-        const res = await getMessages(project.id, sessionId, 50, cursor);
-        allMsgs.push(...(res.items || []));
-        if (res.events) {
-          allEvts.push(...res.events);
+      const first = await getMessages(project.id, sessionId, 50, undefined);
+      setAllMessages(first.items || []);
+      if (first.events) allEvts.push(...first.events);
+      if (first.public_urls) Object.assign(allPublicUrls, first.public_urls);
+      setMessagePublicUrls({ ...allPublicUrls });
+      setCurrentPage(1);
+      setIsLoadingMessages(false);
+
+      if (first.has_more) {
+        setIsLoadingMoreMessages(true);
+        let cursor = first.next_cursor;
+        while (cursor) {
+          const res = await getMessages(project.id, sessionId, 50, cursor);
+          setAllMessages(prev => [...prev, ...(res.items || [])]);
+          if (res.events) allEvts.push(...res.events);
+          if (res.public_urls) {
+            Object.assign(allPublicUrls, res.public_urls);
+            setMessagePublicUrls({ ...allPublicUrls });
+          }
+          cursor = res.has_more ? res.next_cursor : undefined;
         }
-        if (res.public_urls) {
-          Object.assign(allPublicUrls, res.public_urls);
-        }
-        cursor = res.next_cursor;
-        hasMore = res.has_more || false;
+        setIsLoadingMoreMessages(false);
       }
 
-      setAllMessages(allMsgs);
       const seenIds = new Set<string>();
       const dedupedEvts = allEvts.filter((e) => {
         if (seenIds.has(e.id)) return false;
@@ -329,12 +338,11 @@ export function MessagesPageClient({
       });
       setAllEvents(dedupedEvts);
       setMessagePublicUrls(allPublicUrls);
-      setCurrentPage(1);
     } catch (error) {
       console.error("Failed to load messages:", error);
       toast.error("Failed to load messages");
-    } finally {
       setIsLoadingMessages(false);
+      setIsLoadingMoreMessages(false);
     }
   };
 
@@ -596,8 +604,8 @@ export function MessagesPageClient({
   };
 
   return (
-    <div className="bg-background p-6">
-      <div className="space-y-4">
+    <div className="h-full bg-background p-6 flex flex-col overflow-hidden space-y-2">
+      <div className="shrink-0 space-y-4">
         <div className="flex items-center justify-between">
           <div className="flex items-stretch gap-2">
             <Button
@@ -730,14 +738,15 @@ export function MessagesPageClient({
             )}
           </div>
         )}
+      </div>
 
-        <div className="rounded-md border overflow-hidden flex flex-col">
+        <div className="flex-1 rounded-md border overflow-hidden flex flex-col min-h-0">
           {isLoadingMessages ? (
-            <div className="flex items-center justify-center h-64">
+            <div className="flex items-center justify-center h-full">
               <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
             </div>
           ) : allMessages.length === 0 ? (
-            <div className="flex items-center justify-center h-64">
+            <div className="flex items-center justify-center h-full">
               <p className="text-sm text-muted-foreground">No data</p>
             </div>
           ) : (
@@ -878,58 +887,17 @@ export function MessagesPageClient({
                 </Table>
               </div>
 
-              {totalPages > 1 && (
-                <div className="border-t p-4">
-                  <div className="flex items-center justify-center gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                      disabled={currentPage === 1}
-                    >
-                      Previous
-                    </Button>
-                    {Array.from({ length: totalPages }, (_, i) => i + 1)
-                      .filter(
-                        (page) =>
-                          page === 1 ||
-                          page === totalPages ||
-                          Math.abs(page - currentPage) <= 1
-                      )
-                      .map((page, idx, arr) => {
-                        const showEllipsisBefore =
-                          idx > 0 && page - arr[idx - 1] > 1;
-                        return (
-                          <div key={page} className="flex items-center">
-                            {showEllipsisBefore && (
-                              <span className="px-2 text-sm text-muted-foreground">...</span>
-                            )}
-                            <Button
-                              variant={currentPage === page ? "default" : "outline"}
-                              size="sm"
-                              onClick={() => setCurrentPage(page)}
-                              className="min-w-10"
-                            >
-                              {page}
-                            </Button>
-                          </div>
-                        );
-                      })}
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                      disabled={currentPage === totalPages}
-                    >
-                      Next
-                    </Button>
-                  </div>
-                </div>
-              )}
+              <PaginationBar
+                currentPage={currentPage}
+                totalPages={totalPages}
+                totalItems={filteredTimelineItems.length}
+                onPageChange={setCurrentPage}
+                itemLabel="messages"
+                isLoading={isLoadingMoreMessages}
+              />
             </>
           )}
         </div>
-      </div>
 
       {/* Create Message Dialog */}
       <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>

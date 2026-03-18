@@ -21,14 +21,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  Pagination,
-  PaginationContent,
-  PaginationItem,
-  PaginationLink,
-  PaginationNext,
-  PaginationPrevious,
-} from "@/components/ui/pagination";
+import { PaginationBar } from "@/components/pagination-bar";
 import {
   Select,
   SelectContent,
@@ -217,6 +210,7 @@ const MessageContentPreview = ({
 
 export default function MessagesPage() {
   const t = useTranslations("session");
+  const tp = useTranslations("pagination");
   const params = useParams();
   const router = useRouter();
   const sessionId = params.sessionId as string;
@@ -226,6 +220,7 @@ export default function MessagesPage() {
   const [allMessages, setAllMessages] = useState<Message[]>([]);
   const [allEvents, setAllEvents] = useState<SessionEvent[]>([]);
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
+  const [isLoadingMoreMessages, setIsLoadingMoreMessages] = useState(false);
   const [isRefreshingMessages, setIsRefreshingMessages] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
 
@@ -289,33 +284,43 @@ export default function MessagesPage() {
   const loadAllMessages = async () => {
     try {
       setIsLoadingMessages(true);
-      const allMsgs: Message[] = [];
       const allEvts: SessionEvent[] = [];
       const allPublicUrls: Record<string, { url: string; expire_at: string }> =
         {};
-      let cursor: string | undefined = undefined;
-      let hasMore = true;
 
-      while (hasMore) {
-        const res = await getMessages(sessionId, 50, cursor);
-        if (res.code !== 0) {
-          console.error(res.message);
-          break;
+      const first = await getMessages(sessionId, 50, undefined);
+      if (first.code !== 0) {
+        console.error(first.message);
+        setIsLoadingMessages(false);
+        return;
+      }
+      setAllMessages(first.data?.items || []);
+      if (first.data?.events) allEvts.push(...first.data.events);
+      if (first.data?.public_urls) Object.assign(allPublicUrls, first.data.public_urls);
+      setMessagePublicUrls({ ...allPublicUrls });
+      setCurrentPage(1);
+      setIsLoadingMessages(false);
+
+      if (first.data?.has_more) {
+        setIsLoadingMoreMessages(true);
+        let cursor = first.data?.next_cursor;
+        while (cursor) {
+          const res = await getMessages(sessionId, 50, cursor);
+          if (res.code !== 0) {
+            console.error(res.message);
+            break;
+          }
+          setAllMessages(prev => [...prev, ...(res.data?.items || [])]);
+          if (res.data?.events) allEvts.push(...res.data.events);
+          if (res.data?.public_urls) {
+            Object.assign(allPublicUrls, res.data.public_urls);
+            setMessagePublicUrls({ ...allPublicUrls });
+          }
+          cursor = res.data?.has_more ? res.data?.next_cursor : undefined;
         }
-        allMsgs.push(...(res.data?.items || []));
-        // Collect events from response
-        if (res.data?.events) {
-          allEvts.push(...res.data.events);
-        }
-        // Merge public_urls from each response
-        if (res.data?.public_urls) {
-          Object.assign(allPublicUrls, res.data.public_urls);
-        }
-        cursor = res.data?.next_cursor;
-        hasMore = res.data?.has_more || false;
+        setIsLoadingMoreMessages(false);
       }
 
-      setAllMessages(allMsgs);
       const seenIds = new Set<string>();
       const dedupedEvts = allEvts.filter((e) => {
         if (seenIds.has(e.id)) return false;
@@ -324,11 +329,10 @@ export default function MessagesPage() {
       });
       setAllEvents(dedupedEvts);
       setMessagePublicUrls(allPublicUrls);
-      setCurrentPage(1);
     } catch (error) {
       console.error("Failed to load messages:", error);
-    } finally {
       setIsLoadingMessages(false);
+      setIsLoadingMoreMessages(false);
     }
   };
 
@@ -602,8 +606,8 @@ export default function MessagesPage() {
   };
 
   return (
-    <div className="h-full bg-background p-6">
-      <div className="space-y-4">
+    <div className="h-full bg-background p-6 flex flex-col overflow-hidden space-y-2">
+      <div className="shrink-0 space-y-4">
         <div className="flex items-stretch gap-2">
           <Button
             variant="outline"
@@ -740,14 +744,15 @@ export default function MessagesPage() {
             )}
           </div>
         )}
+      </div>
 
-        <div className="rounded-md border overflow-hidden flex flex-col">
+        <div className="flex-1 rounded-md border overflow-hidden flex flex-col min-h-0">
           {isLoadingMessages ? (
-            <div className="flex items-center justify-center h-64">
+            <div className="flex items-center justify-center h-full">
               <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
             </div>
           ) : allMessages.length === 0 ? (
-            <div className="flex items-center justify-center h-64">
+            <div className="flex items-center justify-center h-full">
               <p className="text-sm text-muted-foreground">
                 {t("noData")}
               </p>
@@ -896,71 +901,17 @@ export default function MessagesPage() {
                 </Table>
               </div>
 
-              {totalPages > 1 && (
-                <div className="border-t p-4">
-                  <Pagination>
-                    <PaginationContent>
-                      <PaginationItem>
-                        <PaginationPrevious
-                          onClick={() =>
-                            setCurrentPage((p) => Math.max(1, p - 1))
-                          }
-                          className={
-                            currentPage === 1
-                              ? "pointer-events-none opacity-50"
-                              : "cursor-pointer"
-                          }
-                        />
-                      </PaginationItem>
-                      {Array.from({ length: totalPages }, (_, i) => i + 1)
-                        .filter(
-                          (page) =>
-                            page === 1 ||
-                            page === totalPages ||
-                            Math.abs(page - currentPage) <= 1
-                        )
-                        .map((page, idx, arr) => {
-                          const showEllipsisBefore =
-                            idx > 0 && page - arr[idx - 1] > 1;
-                          return (
-                            <div key={page} className="flex items-center">
-                              {showEllipsisBefore && (
-                                <span className="px-2">...</span>
-                              )}
-                              <PaginationItem>
-                                <PaginationLink
-                                  onClick={() => setCurrentPage(page)}
-                                  isActive={currentPage === page}
-                                  className="cursor-pointer"
-                                >
-                                  {page}
-                                </PaginationLink>
-                              </PaginationItem>
-                            </div>
-                          );
-                        })}
-                      <PaginationItem>
-                        <PaginationNext
-                          onClick={() =>
-                            setCurrentPage((p) =>
-                              Math.min(totalPages, p + 1)
-                            )
-                          }
-                          className={
-                            currentPage === totalPages
-                              ? "pointer-events-none opacity-50"
-                              : "cursor-pointer"
-                          }
-                        />
-                      </PaginationItem>
-                    </PaginationContent>
-                  </Pagination>
-                </div>
-              )}
+              <PaginationBar
+                currentPage={currentPage}
+                totalPages={totalPages}
+                totalItems={filteredTimelineItems.length}
+                onPageChange={setCurrentPage}
+                itemLabel={tp("messages")}
+                isLoading={isLoadingMoreMessages}
+              />
             </>
           )}
         </div>
-      </div>
 
       {/* Create Message Dialog */}
       <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>

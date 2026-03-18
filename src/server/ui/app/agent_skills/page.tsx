@@ -32,6 +32,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Loader2, Upload, RefreshCw } from "lucide-react";
+import { PaginationBar } from "@/components/pagination-bar";
 import {
   getAgentSkills,
   createAgentSkill,
@@ -39,14 +40,19 @@ import {
 } from "@/app/agent_skills/actions";
 import { AgentSkill } from "@/types";
 
+const PAGE_SIZE = 20;
+
 export default function AgentSkillsPage() {
   const t = useTranslations("agentSkills");
+  const tp = useTranslations("pagination");
   const router = useRouter();
 
   const [skills, setSkills] = useState<AgentSkill[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [filterText, setFilterText] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
 
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [skillToDelete, setSkillToDelete] = useState<AgentSkill | null>(null);
@@ -63,29 +69,44 @@ export default function AgentSkillsPage() {
     skill.name.toLowerCase().includes(filterText.toLowerCase())
   );
 
+  const totalPages = Math.ceil(filteredSkills.length / PAGE_SIZE);
+  const paginatedSkills = filteredSkills.slice(
+    (currentPage - 1) * PAGE_SIZE,
+    currentPage * PAGE_SIZE
+  );
+
   const loadSkills = async () => {
     try {
       setIsLoading(true);
-      const allSkills: AgentSkill[] = [];
-      let cursor: string | undefined = undefined;
-      let hasMore = true;
 
-      while (hasMore) {
-        const res = await getAgentSkills(50, cursor, true);
-        if (res.code !== 0) {
-          console.error(res.message);
-          break;
-        }
-        allSkills.push(...(res.data?.items || []));
-        cursor = res.data?.next_cursor;
-        hasMore = res.data?.has_more || false;
+      const first = await getAgentSkills(50, undefined, true);
+      if (first.code !== 0) {
+        console.error(first.message);
+        setIsLoading(false);
+        return;
       }
+      setSkills(first.data?.items || []);
+      setCurrentPage(1);
+      setIsLoading(false);
 
-      setSkills(allSkills);
+      if (first.data?.has_more) {
+        setIsLoadingMore(true);
+        let cursor = first.data?.next_cursor;
+        while (cursor) {
+          const res = await getAgentSkills(50, cursor, true);
+          if (res.code !== 0) {
+            console.error(res.message);
+            break;
+          }
+          setSkills(prev => [...prev, ...(res.data?.items || [])]);
+          cursor = res.data?.has_more ? res.data?.next_cursor : undefined;
+        }
+        setIsLoadingMore(false);
+      }
     } catch (error) {
       console.error("Failed to load agent skills:", error);
-    } finally {
       setIsLoading(false);
+      setIsLoadingMore(false);
     }
   };
 
@@ -197,7 +218,10 @@ export default function AgentSkillsPage() {
             type="text"
             placeholder={t("filterById")}
             value={filterText}
-            onChange={(e) => setFilterText(e.target.value)}
+            onChange={(e) => {
+              setFilterText(e.target.value);
+              setCurrentPage(1);
+            }}
             className="max-w-sm"
           />
         </div>
@@ -215,7 +239,8 @@ export default function AgentSkillsPage() {
             </p>
           </div>
         ) : (
-          <div className="overflow-auto">
+          <>
+          <div className="overflow-auto flex-1">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -227,7 +252,7 @@ export default function AgentSkillsPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredSkills.map((skill) => (
+                {paginatedSkills.map((skill) => (
                   <TableRow key={skill.id}>
                     <TableCell className="font-medium">
                       {skill.name}
@@ -272,6 +297,15 @@ export default function AgentSkillsPage() {
               </TableBody>
             </Table>
           </div>
+          <PaginationBar
+            currentPage={currentPage}
+            totalPages={totalPages}
+            totalItems={filteredSkills.length}
+            onPageChange={setCurrentPage}
+            itemLabel={tp("skills")}
+            isLoading={isLoadingMore}
+          />
+          </>
         )}
       </div>
 

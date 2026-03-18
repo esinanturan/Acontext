@@ -37,6 +37,7 @@ import {
   Edit,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { PaginationBar } from "@/components/pagination-bar";
 import {
   getDisks,
   getListArtifacts,
@@ -65,6 +66,8 @@ import { yaml } from "@codemirror/legacy-modes/mode/yaml";
 import { shell } from "@codemirror/legacy-modes/mode/shell";
 import { rust } from "@codemirror/legacy-modes/mode/rust";
 import { ruby } from "@codemirror/legacy-modes/mode/ruby";
+
+const PAGE_SIZE = 20;
 
 interface TreeNode {
   id: string;
@@ -312,6 +315,7 @@ function Node({
 
 export default function DiskPage() {
   const t = useTranslations("disk");
+  const tp = useTranslations("pagination");
   const { resolvedTheme } = useTheme();
   const searchParams = useSearchParams();
 
@@ -325,6 +329,7 @@ export default function DiskPage() {
   const [disks, setDisks] = useState<Disk[]>([]);
   const [selectedDisk, setSelectedDisk] = useState<Disk | null>(null);
   const [isLoadingDisks, setIsLoadingDisks] = useState(true);
+  const [isLoadingMoreDisks, setIsLoadingMoreDisks] = useState(false);
 
   // File preview states
   const [imageUrl, setImageUrl] = useState<string | null>(null);
@@ -376,36 +381,52 @@ export default function DiskPage() {
 
   // Filter state
   const [filterText, setFilterText] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
 
   // Filtered disks based on search text
   const filteredDisks = disks.filter((disk) =>
     disk.id.toLowerCase().includes(filterText.toLowerCase())
   );
 
+  const totalPages = Math.ceil(filteredDisks.length / PAGE_SIZE);
+  const paginatedDisks = filteredDisks.slice(
+    (currentPage - 1) * PAGE_SIZE,
+    currentPage * PAGE_SIZE
+  );
+
   // Load disks function (extracted for reuse)
   const loadDisks = async () => {
     try {
       setIsLoadingDisks(true);
-      const allDsks: Disk[] = [];
-      let cursor: string | undefined = undefined;
-      let hasMore = true;
 
-      while (hasMore) {
-        const res = await getDisks(50, cursor, true);
-        if (res.code !== 0) {
-          console.error(res.message);
-          break;
-        }
-        allDsks.push(...(res.data?.items || []));
-        cursor = res.data?.next_cursor;
-        hasMore = res.data?.has_more || false;
+      const first = await getDisks(50, undefined, true);
+      if (first.code !== 0) {
+        console.error(first.message);
+        setIsLoadingDisks(false);
+        return;
       }
+      setDisks(first.data?.items || []);
+      setCurrentPage(1);
+      setIsLoadingDisks(false);
 
-      setDisks(allDsks);
+      if (first.data?.has_more) {
+        setIsLoadingMoreDisks(true);
+        let cursor = first.data?.next_cursor;
+        while (cursor) {
+          const res = await getDisks(50, cursor, true);
+          if (res.code !== 0) {
+            console.error(res.message);
+            break;
+          }
+          setDisks(prev => [...prev, ...(res.data?.items || [])]);
+          cursor = res.data?.has_more ? res.data?.next_cursor : undefined;
+        }
+        setIsLoadingMoreDisks(false);
+      }
     } catch (error) {
       console.error("Failed to load disks:", error);
-    } finally {
       setIsLoadingDisks(false);
+      setIsLoadingMoreDisks(false);
     }
   };
 
@@ -1049,13 +1070,16 @@ export default function DiskPage() {
               type="text"
               placeholder={t("filterPlaceholder")}
               value={filterText}
-              onChange={(e) => setFilterText(e.target.value)}
+              onChange={(e) => {
+                setFilterText(e.target.value);
+                setCurrentPage(1);
+              }}
               className="w-full"
             />
           </div>
 
           {/* Disk list */}
-          <div className="flex-1 overflow-auto">
+          <div className="flex-1 flex flex-col min-h-0">
             {isLoadingDisks ? (
               <div className="flex items-center justify-center h-full">
                 <div className="flex flex-col items-center gap-2">
@@ -1074,8 +1098,9 @@ export default function DiskPage() {
                 </p>
               </div>
             ) : (
-              <div className="space-y-2">
-                {filteredDisks.map((disk) => {
+              <>
+              <div className="space-y-2 overflow-auto flex-1">
+                {paginatedDisks.map((disk) => {
                   const isSelected = selectedDisk?.id === disk.id;
                   return (
                     <div
@@ -1111,6 +1136,15 @@ export default function DiskPage() {
                   );
                 })}
               </div>
+              <PaginationBar
+                currentPage={currentPage}
+                totalPages={totalPages}
+                totalItems={filteredDisks.length}
+                onPageChange={setCurrentPage}
+                itemLabel={tp("disks")}
+                isLoading={isLoadingMoreDisks}
+              />
+              </>
             )}
           </div>
         </div>

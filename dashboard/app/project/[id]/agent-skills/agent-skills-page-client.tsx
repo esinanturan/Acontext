@@ -57,6 +57,7 @@ import {
   ChevronsUpDown,
 } from "lucide-react";
 import { useTopNavStore } from "@/stores/top-nav";
+import { PaginationBar } from "@/components/pagination-bar";
 import {
   Organization,
   Project,
@@ -70,6 +71,8 @@ import {
 } from "./actions";
 import { getAllUsers } from "../actions";
 import { toast } from "sonner";
+
+const PAGE_SIZE = 20;
 
 interface AgentSkillsPageClientProps {
   project: Project;
@@ -90,9 +93,8 @@ export function AgentSkillsPageClient({
 
   const [skills, setSkills] = useState<AgentSkillListItem[]>([]);
   const [isLoadingSkills, setIsLoadingSkills] = useState(true);
-  const [nextCursor, setNextCursor] = useState<string | undefined>(undefined);
-  const [hasMoreSkills, setHasMoreSkills] = useState(false);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
 
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [skillToDelete, setSkillToDelete] = useState<AgentSkillListItem | null>(null);
@@ -142,35 +144,29 @@ export function AgentSkillsPageClient({
     try {
       setIsLoadingSkills(true);
       const userParam = userFilter === "all" ? undefined : userFilter;
-      const res = await getAgentSkills(project.id, 50, undefined, true, userParam);
-      setSkills(res.items || []);
-      setNextCursor(res.next_cursor);
-      setHasMoreSkills(res.has_more || false);
+
+      const first = await getAgentSkills(project.id, 50, undefined, true, userParam);
+      setSkills(first.items || []);
+      setCurrentPage(1);
+      setIsLoadingSkills(false);
+
+      if (first.has_more) {
+        setIsLoadingMore(true);
+        let cursor = first.next_cursor;
+        while (cursor) {
+          const res = await getAgentSkills(project.id, 50, cursor, true, userParam);
+          setSkills(prev => [...prev, ...(res.items || [])]);
+          cursor = res.has_more ? res.next_cursor : undefined;
+        }
+        setIsLoadingMore(false);
+      }
     } catch (error) {
       console.error("Failed to load skills:", error);
       toast.error("Failed to load agent skills");
-    } finally {
       setIsLoadingSkills(false);
-    }
-  }, [project.id, userFilter]);
-
-  const loadMoreSkills = useCallback(async () => {
-    if (!nextCursor || isLoadingMore) return;
-
-    try {
-      setIsLoadingMore(true);
-      const userParam = userFilter === "all" ? undefined : userFilter;
-      const res = await getAgentSkills(project.id, 50, nextCursor, true, userParam);
-      setSkills((prev) => [...prev, ...(res.items || [])]);
-      setNextCursor(res.next_cursor);
-      setHasMoreSkills(res.has_more || false);
-    } catch (error) {
-      console.error("Failed to load more skills:", error);
-      toast.error("Failed to load more agent skills");
-    } finally {
       setIsLoadingMore(false);
     }
-  }, [project.id, nextCursor, userFilter, isLoadingMore]);
+  }, [project.id, userFilter]);
 
   const loadUsers = useCallback(async () => {
     try {
@@ -194,6 +190,12 @@ export function AgentSkillsPageClient({
         s.name.toLowerCase().includes(filterText.toLowerCase())
       )
     : skills;
+
+  const totalPages = Math.ceil(filteredSkills.length / PAGE_SIZE);
+  const paginatedSkills = filteredSkills.slice(
+    (currentPage - 1) * PAGE_SIZE,
+    currentPage * PAGE_SIZE
+  );
 
   const handleSkillClick = (skill: SkillItem) => {
     const encodedSkillId = encodeId(skill.id);
@@ -409,7 +411,10 @@ export function AgentSkillsPageClient({
               type="text"
               placeholder="Filter by name..."
               value={filterText}
-              onChange={(e) => setFilterText(e.target.value)}
+              onChange={(e) => {
+              setFilterText(e.target.value);
+              setCurrentPage(1);
+            }}
               className="max-w-sm"
             />
           </div>
@@ -438,29 +443,19 @@ export function AgentSkillsPageClient({
         ) : (
           <>
             <SkillList
-              skills={filteredSkills}
+              skills={paginatedSkills}
               onSkillClick={handleSkillClick}
               onSkillDelete={handleSkillDelete}
               className="overflow-auto flex-1"
             />
-            {hasMoreSkills && !filterText ? (
-              <div className="pt-4 flex justify-center shrink-0">
-                <Button
-                  variant="outline"
-                  onClick={loadMoreSkills}
-                  disabled={isLoadingMore}
-                >
-                  {isLoadingMore ? (
-                    <>
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      Loading...
-                    </>
-                  ) : (
-                    "Load More"
-                  )}
-                </Button>
-              </div>
-            ) : null}
+            <PaginationBar
+              currentPage={currentPage}
+              totalPages={totalPages}
+              totalItems={filteredSkills.length}
+              onPageChange={setCurrentPage}
+              itemLabel="skills"
+              isLoading={isLoadingMore}
+            />
           </>
         )}
       </div>

@@ -33,6 +33,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Loader2, RefreshCw, Plus, Trash2 } from "lucide-react";
+import { PaginationBar } from "@/components/pagination-bar";
 import { toast } from "sonner";
 import {
   getLearningSpaces,
@@ -42,6 +43,8 @@ import {
 import { getUsers } from "@/app/users/actions";
 import { LearningSpace } from "@/types";
 
+const PAGE_SIZE = 20;
+
 function getValidMeta(meta: string, hasError: boolean): string | undefined {
   if (!meta || hasError) return undefined;
   return meta;
@@ -49,12 +52,15 @@ function getValidMeta(meta: string, hasError: boolean): string | undefined {
 
 export default function LearningSpacesPage() {
   const t = useTranslations("learningSpaces");
+  const tp = useTranslations("pagination");
   const router = useRouter();
 
   const [spaces, setSpaces] = useState<LearningSpace[]>([]);
   const [userMap, setUserMap] = useState<Map<string, string>>(new Map());
   const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
   const [filterUser, setFilterUser] = useState("");
   const [filterMeta, setFilterMeta] = useState("");
   const [metaJsonError, setMetaJsonError] = useState(false);
@@ -73,26 +79,44 @@ export default function LearningSpacesPage() {
     async (userFilter?: string, metaFilter?: string) => {
       setIsLoading(true);
       try {
-        const allSpaces: LearningSpace[] = [];
-        let cursor: string | undefined = undefined;
-        let hasMore = true;
-        while (hasMore) {
-          const res = await getLearningSpaces(
-            50,
-            cursor,
-            userFilter || undefined,
-            true,
-            metaFilter || undefined
-          );
-          if (res.code !== 0) {
-            console.error(res.message);
-            break;
-          }
-          allSpaces.push(...(res.data?.items || []));
-          cursor = res.data?.next_cursor;
-          hasMore = res.data?.has_more || false;
+        const first = await getLearningSpaces(
+          50,
+          undefined,
+          userFilter || undefined,
+          true,
+          metaFilter || undefined
+        );
+        if (first.code !== 0) {
+          console.error(first.message);
+          setIsLoading(false);
+          return;
         }
+        const allSpaces: LearningSpace[] = [...(first.data?.items || [])];
         setSpaces(allSpaces);
+        setCurrentPage(1);
+        setIsLoading(false);
+
+        if (first.data?.has_more) {
+          setIsLoadingMore(true);
+          let cursor = first.data?.next_cursor;
+          while (cursor) {
+            const res = await getLearningSpaces(
+              50,
+              cursor,
+              userFilter || undefined,
+              true,
+              metaFilter || undefined
+            );
+            if (res.code !== 0) {
+              console.error(res.message);
+              break;
+            }
+            allSpaces.push(...(res.data?.items || []));
+            setSpaces([...allSpaces]);
+            cursor = res.data?.has_more ? res.data?.next_cursor : undefined;
+          }
+          setIsLoadingMore(false);
+        }
 
         const userIds = [
           ...new Set(allSpaces.map((s) => s.user_id).filter(Boolean)),
@@ -111,8 +135,8 @@ export default function LearningSpacesPage() {
         }
       } catch (error) {
         console.error("Failed to load learning spaces:", error);
-      } finally {
         setIsLoading(false);
+        setIsLoadingMore(false);
       }
     },
     []
@@ -234,6 +258,12 @@ export default function LearningSpacesPage() {
     }
   };
 
+  const totalPages = Math.ceil(spaces.length / PAGE_SIZE);
+  const paginatedSpaces = spaces.slice(
+    (currentPage - 1) * PAGE_SIZE,
+    currentPage * PAGE_SIZE
+  );
+
   const filtersActive = filterUser !== "" || filterMeta !== "";
 
   return (
@@ -308,7 +338,8 @@ export default function LearningSpacesPage() {
             </p>
           </div>
         ) : (
-          <div className="overflow-auto">
+          <>
+          <div className="overflow-auto flex-1">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -320,7 +351,7 @@ export default function LearningSpacesPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {spaces.map((space) => (
+                {paginatedSpaces.map((space) => (
                   <TableRow
                     key={space.id}
                     className="cursor-pointer"
@@ -380,6 +411,15 @@ export default function LearningSpacesPage() {
               </TableBody>
             </Table>
           </div>
+          <PaginationBar
+            currentPage={currentPage}
+            totalPages={totalPages}
+            totalItems={spaces.length}
+            onPageChange={setCurrentPage}
+            itemLabel={tp("spaces")}
+            isLoading={isLoadingMore}
+          />
+          </>
         )}
       </div>
 

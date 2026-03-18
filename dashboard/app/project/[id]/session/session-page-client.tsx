@@ -59,6 +59,7 @@ import {
 } from "@/components/ui/table";
 import { Loader2, Plus, RefreshCw, ChevronsUpDown } from "lucide-react";
 import { CodeEditor } from "@/components/code-editor";
+import { PaginationBar } from "@/components/pagination-bar";
 import { Session, Organization, Project, User } from "@/types";
 import {
   getSessions,
@@ -69,6 +70,8 @@ import {
 } from "./actions";
 import { getAllUsers } from "../actions";
 import { toast } from "sonner";
+
+const PAGE_SIZE = 20;
 
 interface SessionPageClientProps {
   project: Project;
@@ -103,12 +106,11 @@ export function SessionPageClient({
 
   const [sessions, setSessions] = useState<Session[]>([]);
   const [isLoadingSessions, setIsLoadingSessions] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [isCreatingSession, setIsCreatingSession] = useState(false);
   const [isRefreshingSessions, setIsRefreshingSessions] = useState(false);
   const [sessionFilterText, setSessionFilterText] = useState("");
-  const [nextCursor, setNextCursor] = useState<string | undefined>(undefined);
-  const [hasMoreSessions, setHasMoreSessions] = useState(false);
-  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
 
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [sessionToDelete, setSessionToDelete] = useState<Session | null>(null);
@@ -155,41 +157,39 @@ export function SessionPageClient({
     });
   }, [sessions, sessionFilterText]);
 
+  const totalPages = Math.ceil(filteredSessions.length / PAGE_SIZE);
+  const paginatedSessions = filteredSessions.slice(
+    (currentPage - 1) * PAGE_SIZE,
+    currentPage * PAGE_SIZE
+  );
+
   const loadSessions = useCallback(async () => {
     try {
       setIsLoadingSessions(true);
       const userParam = userFilter === "all" ? undefined : userFilter;
 
-      const res = await getSessions(project.id, 50, undefined, true, userParam);
-      setSessions(res.items || []);
-      setNextCursor(res.next_cursor);
-      setHasMoreSessions(res.has_more || false);
+      const first = await getSessions(project.id, 50, undefined, true, userParam);
+      setSessions(first.items || []);
+      setCurrentPage(1);
+      setIsLoadingSessions(false);
+
+      if (first.has_more) {
+        setIsLoadingMore(true);
+        let cursor = first.next_cursor;
+        while (cursor) {
+          const res = await getSessions(project.id, 50, cursor, true, userParam);
+          setSessions(prev => [...prev, ...(res.items || [])]);
+          cursor = res.has_more ? res.next_cursor : undefined;
+        }
+        setIsLoadingMore(false);
+      }
     } catch (error) {
       console.error("Failed to load sessions:", error);
       toast.error("Failed to load sessions");
-    } finally {
       setIsLoadingSessions(false);
-    }
-  }, [project.id, userFilter]);
-
-  const loadMoreSessions = useCallback(async () => {
-    if (!nextCursor || isLoadingMore) return;
-
-    try {
-      setIsLoadingMore(true);
-      const userParam = userFilter === "all" ? undefined : userFilter;
-
-      const res = await getSessions(project.id, 50, nextCursor, true, userParam);
-      setSessions((prev) => [...prev, ...(res.items || [])]);
-      setNextCursor(res.next_cursor);
-      setHasMoreSessions(res.has_more || false);
-    } catch (error) {
-      console.error("Failed to load more sessions:", error);
-      toast.error("Failed to load more sessions");
-    } finally {
       setIsLoadingMore(false);
     }
-  }, [project.id, nextCursor, userFilter, isLoadingMore]);
+  }, [project.id, userFilter]);
 
   const loadUsers = useCallback(async () => {
     try {
@@ -439,7 +439,10 @@ export function SessionPageClient({
             type="text"
             placeholder="Filter by ID"
             value={sessionFilterText}
-            onChange={(e) => setSessionFilterText(e.target.value)}
+            onChange={(e) => {
+              setSessionFilterText(e.target.value);
+              setCurrentPage(1);
+            }}
             className="max-w-sm"
           />
         </div>
@@ -458,7 +461,7 @@ export function SessionPageClient({
           </div>
         ) : (
           <>
-            <div className="overflow-auto">
+            <div className="overflow-auto flex-1">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -469,7 +472,7 @@ export function SessionPageClient({
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredSessions.map((session) => (
+                  {paginatedSessions.map((session) => (
                     <TableRow key={session.id}>
                       <TableCell className="font-mono">
                         {session.id}
@@ -533,24 +536,14 @@ export function SessionPageClient({
                 </TableBody>
               </Table>
             </div>
-            {hasMoreSessions && !sessionFilterText && (
-              <div className="p-4 flex justify-center border-t">
-                <Button
-                  variant="outline"
-                  onClick={loadMoreSessions}
-                  disabled={isLoadingMore}
-                >
-                  {isLoadingMore ? (
-                    <>
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      Loading...
-                    </>
-                  ) : (
-                    "Load More"
-                  )}
-                </Button>
-              </div>
-            )}
+            <PaginationBar
+              currentPage={currentPage}
+              totalPages={totalPages}
+              totalItems={filteredSessions.length}
+              onPageChange={setCurrentPage}
+              itemLabel="sessions"
+              isLoading={isLoadingMore}
+            />
           </>
         )}
       </div>
