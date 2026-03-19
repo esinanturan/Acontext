@@ -325,6 +325,8 @@ func BuildContainer() *do.Injector {
 			do.MustInvoke[service.AgentSkillsService](i),
 			do.MustInvoke[service.ArtifactService](i),
 			configs.SkillTemplatesFS,
+			do.MustInvoke[*mq.Publisher](i),
+			do.MustInvoke[*config.Config](i),
 			do.MustInvoke[*zap.Logger](i),
 		), nil
 	})

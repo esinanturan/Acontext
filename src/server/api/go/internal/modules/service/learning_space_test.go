@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/memodb-io/Acontext/internal/config"
 	"github.com/memodb-io/Acontext/internal/modules/model"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -164,8 +165,29 @@ func (m *MockTaskRepo) HasSuccessTask(ctx context.Context, sessionID uuid.UUID) 
 	return args.Bool(0), args.Error(1)
 }
 
+func (m *MockTaskRepo) PromoteAllTasksToSuccess(ctx context.Context, sessionID uuid.UUID) ([]uuid.UUID, error) {
+	args := m.Called(ctx, sessionID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]uuid.UUID), args.Error(1)
+}
+
 // NOTE: MockSessionRepo and MockAgentSkillsRepo are already declared in
 // session_test.go and agent_skills_test.go respectively (same package).
+
+// ---------------------------------------------------------------------------
+// Mock: MQPublisher (for learning space tests)
+// ---------------------------------------------------------------------------
+
+type MockLSPublisher struct {
+	mock.Mock
+}
+
+func (m *MockLSPublisher) PublishJSON(ctx context.Context, exchange, routingKey string, data any) error {
+	args := m.Called(ctx, exchange, routingKey, data)
+	return args.Error(0)
+}
 
 // ---------------------------------------------------------------------------
 // Mock: AgentSkillsService (for learning space tests)
@@ -267,6 +289,8 @@ type lsMocks struct {
 	taskRepo       *MockTaskRepo
 	agentSkillsSvc *MockLSAgentSkillsService
 	artifactSvc    *MockArtifactService
+	publisher      *MockLSPublisher
+	cfg            *config.Config
 	templateFS     fstest.MapFS
 	logger         *zap.Logger
 }
@@ -281,13 +305,24 @@ func newLSMocks() lsMocks {
 		taskRepo:       &MockTaskRepo{},
 		agentSkillsSvc: &MockLSAgentSkillsService{},
 		artifactSvc:    &MockArtifactService{},
-		templateFS:     newTestTemplateFS(),
-		logger:         zap.NewNop(),
+		publisher:      &MockLSPublisher{},
+		cfg: &config.Config{
+			RabbitMQ: config.MQCfg{
+				ExchangeName: config.MQExchangeName{
+					LearningSkill: "learning.skill",
+				},
+				RoutingKey: config.MQRoutingKey{
+					LearningSkillDistill: "learning.skill.distill",
+				},
+			},
+		},
+		templateFS: newTestTemplateFS(),
+		logger:     zap.NewNop(),
 	}
 }
 
 func (m lsMocks) service() LearningSpaceService {
-	return NewLearningSpaceService(m.lsRepo, m.lsSkillRepo, m.lsSessRepo, m.skillsRepo, m.sessionRepo, m.taskRepo, m.agentSkillsSvc, m.artifactSvc, m.templateFS, m.logger)
+	return NewLearningSpaceService(m.lsRepo, m.lsSkillRepo, m.lsSessRepo, m.skillsRepo, m.sessionRepo, m.taskRepo, m.agentSkillsSvc, m.artifactSvc, m.templateFS, m.publisher, m.cfg, m.logger)
 }
 
 // setupInitSkillsExpectations sets up mock expectations for the default skill
@@ -989,7 +1024,7 @@ func TestLearningSpaceService_GetSession(t *testing.T) {
 		m.lsSessRepo.AssertNotCalled(t, "UpdateStatus")
 	})
 
-	t.Run("pending + all messages succeeded + no success task → resolved to completed", func(t *testing.T) {
+	t.Run("pending + all messages succeeded + no success task + no tasks → resolved to completed", func(t *testing.T) {
 		m := newLSMocks()
 		m.lsRepo.On("GetByID", ctx, projectID, lsID).Return(&model.LearningSpace{ID: lsID, ProjectID: projectID}, nil)
 		m.lsSessRepo.On("GetBySpaceAndSessionID", ctx, lsID, sessionID).Return(&model.LearningSpaceSession{
@@ -998,6 +1033,7 @@ func TestLearningSpaceService_GetSession(t *testing.T) {
 		m.sessionRepo.On("HasUnfinishedMessages", ctx, sessionID).Return(false, nil)
 		m.taskRepo.On("HasSuccessTask", ctx, sessionID).Return(false, nil)
 		m.sessionRepo.On("HasFailedMessages", ctx, sessionID).Return(false, nil)
+		m.taskRepo.On("PromoteAllTasksToSuccess", ctx, sessionID).Return([]uuid.UUID{}, nil)
 		m.lsSessRepo.On("UpdateStatus", ctx, lsID, sessionID, "completed").Return(nil)
 
 		result, err := m.service().GetSession(ctx, projectID, lsID, sessionID)
@@ -1034,6 +1070,7 @@ func TestLearningSpaceService_GetSession(t *testing.T) {
 		m.sessionRepo.On("HasUnfinishedMessages", ctx, sessionID).Return(false, nil)
 		m.taskRepo.On("HasSuccessTask", ctx, sessionID).Return(false, nil)
 		m.sessionRepo.On("HasFailedMessages", ctx, sessionID).Return(false, nil)
+		m.taskRepo.On("PromoteAllTasksToSuccess", ctx, sessionID).Return([]uuid.UUID{}, nil)
 		m.lsSessRepo.On("UpdateStatus", ctx, lsID, sessionID, "completed").Return(nil)
 
 		result, err := m.service().GetSession(ctx, projectID, lsID, sessionID)
@@ -1092,7 +1129,7 @@ func TestLearningSpaceService_GetSession(t *testing.T) {
 		m.sessionRepo.AssertNotCalled(t, "HasFailedMessages")
 	})
 
-	t.Run("HasFailedMessages error → default to completed", func(t *testing.T) {
+	t.Run("HasFailedMessages error → proceeds to promote, no tasks → completed", func(t *testing.T) {
 		m := newLSMocks()
 		m.lsRepo.On("GetByID", ctx, projectID, lsID).Return(&model.LearningSpace{ID: lsID, ProjectID: projectID}, nil)
 		m.lsSessRepo.On("GetBySpaceAndSessionID", ctx, lsID, sessionID).Return(&model.LearningSpaceSession{
@@ -1101,6 +1138,7 @@ func TestLearningSpaceService_GetSession(t *testing.T) {
 		m.sessionRepo.On("HasUnfinishedMessages", ctx, sessionID).Return(false, nil)
 		m.taskRepo.On("HasSuccessTask", ctx, sessionID).Return(false, nil)
 		m.sessionRepo.On("HasFailedMessages", ctx, sessionID).Return(false, errors.New("db error"))
+		m.taskRepo.On("PromoteAllTasksToSuccess", ctx, sessionID).Return([]uuid.UUID{}, nil)
 		m.lsSessRepo.On("UpdateStatus", ctx, lsID, sessionID, "completed").Return(nil)
 
 		result, err := m.service().GetSession(ctx, projectID, lsID, sessionID)
@@ -1118,6 +1156,7 @@ func TestLearningSpaceService_GetSession(t *testing.T) {
 		m.sessionRepo.On("HasUnfinishedMessages", ctx, sessionID).Return(false, nil)
 		m.taskRepo.On("HasSuccessTask", ctx, sessionID).Return(false, nil)
 		m.sessionRepo.On("HasFailedMessages", ctx, sessionID).Return(false, nil)
+		m.taskRepo.On("PromoteAllTasksToSuccess", ctx, sessionID).Return([]uuid.UUID{}, nil)
 		m.lsSessRepo.On("UpdateStatus", ctx, lsID, sessionID, "completed").Return(errors.New("db write error"))
 
 		result, err := m.service().GetSession(ctx, projectID, lsID, sessionID)
@@ -1172,6 +1211,7 @@ func TestLearningSpaceService_ListSessions(t *testing.T) {
 		m.sessionRepo.On("HasUnfinishedMessages", ctx, sess1ID).Return(false, nil)
 		m.taskRepo.On("HasSuccessTask", ctx, sess1ID).Return(false, nil)
 		m.sessionRepo.On("HasFailedMessages", ctx, sess1ID).Return(false, nil)
+		m.taskRepo.On("PromoteAllTasksToSuccess", ctx, sess1ID).Return([]uuid.UUID{}, nil)
 		m.lsSessRepo.On("UpdateStatus", ctx, lsID, sess1ID, "completed").Return(nil)
 
 		result, err := m.service().ListSessions(ctx, projectID, lsID)
@@ -1208,10 +1248,11 @@ func TestLearningSpaceService_ListSessions(t *testing.T) {
 			{ID: uuid.New(), LearningSpaceID: lsID, SessionID: sess1ID, Status: "pending"},
 			{ID: uuid.New(), LearningSpaceID: lsID, SessionID: sess2ID, Status: "pending"},
 		}, nil)
-		// sess1 resolves to completed
+		// sess1 resolves to completed (no tasks to promote)
 		m.sessionRepo.On("HasUnfinishedMessages", ctx, sess1ID).Return(false, nil)
 		m.taskRepo.On("HasSuccessTask", ctx, sess1ID).Return(false, nil)
 		m.sessionRepo.On("HasFailedMessages", ctx, sess1ID).Return(false, nil)
+		m.taskRepo.On("PromoteAllTasksToSuccess", ctx, sess1ID).Return([]uuid.UUID{}, nil)
 		m.lsSessRepo.On("UpdateStatus", ctx, lsID, sess1ID, "completed").Return(nil)
 		// sess2 resolves to failed
 		m.sessionRepo.On("HasUnfinishedMessages", ctx, sess2ID).Return(false, nil)
@@ -1225,5 +1266,173 @@ func TestLearningSpaceService_ListSessions(t *testing.T) {
 		assert.Len(t, result, 2)
 		assert.Equal(t, "completed", result[0].Status)
 		assert.Equal(t, "failed", result[1].Status)
+	})
+
+	t.Run("multiple pending — one with promotable tasks, one without", func(t *testing.T) {
+		m := newLSMocks()
+		sess1ID := uuid.New()
+		sess2ID := uuid.New()
+		task1ID := uuid.New()
+		m.lsRepo.On("GetByID", ctx, projectID, lsID).Return(&model.LearningSpace{ID: lsID, ProjectID: projectID}, nil)
+		m.lsSessRepo.On("ListBySpaceID", ctx, lsID).Return([]*model.LearningSpaceSession{
+			{ID: uuid.New(), LearningSpaceID: lsID, SessionID: sess1ID, Status: "pending"},
+			{ID: uuid.New(), LearningSpaceID: lsID, SessionID: sess2ID, Status: "pending"},
+		}, nil)
+		// sess1: has promotable tasks → stays pending
+		m.sessionRepo.On("HasUnfinishedMessages", ctx, sess1ID).Return(false, nil)
+		m.taskRepo.On("HasSuccessTask", ctx, sess1ID).Return(false, nil)
+		m.sessionRepo.On("HasFailedMessages", ctx, sess1ID).Return(false, nil)
+		m.taskRepo.On("PromoteAllTasksToSuccess", ctx, sess1ID).Return([]uuid.UUID{task1ID}, nil)
+		m.publisher.On("PublishJSON", ctx, "learning.skill", "learning.skill.distill", SkillLearnTaskMQ{
+			ProjectID: projectID, SessionID: sess1ID, TaskID: task1ID,
+		}).Return(nil)
+		// sess2: no tasks → completed
+		m.sessionRepo.On("HasUnfinishedMessages", ctx, sess2ID).Return(false, nil)
+		m.taskRepo.On("HasSuccessTask", ctx, sess2ID).Return(false, nil)
+		m.sessionRepo.On("HasFailedMessages", ctx, sess2ID).Return(false, nil)
+		m.taskRepo.On("PromoteAllTasksToSuccess", ctx, sess2ID).Return([]uuid.UUID{}, nil)
+		m.lsSessRepo.On("UpdateStatus", ctx, lsID, sess2ID, "completed").Return(nil)
+
+		result, err := m.service().ListSessions(ctx, projectID, lsID)
+
+		assert.NoError(t, err)
+		assert.Len(t, result, 2)
+		assert.Equal(t, "pending", result[0].Status)
+		assert.Equal(t, "completed", result[1].Status)
+		m.publisher.AssertCalled(t, "PublishJSON", ctx, "learning.skill", "learning.skill.distill", mock.Anything)
+	})
+}
+
+// ---------------------------------------------------------------------------
+// resolvePendingStatus — New Behaviors (auto-promote)
+// ---------------------------------------------------------------------------
+
+func TestResolvePendingStatus_AutoPromote(t *testing.T) {
+	ctx := context.Background()
+	projectID := uuid.New()
+	lsID := uuid.New()
+	sessionID := uuid.New()
+
+	t.Run("pending + tasks exist + no success task → promotes + publishes + stays pending", func(t *testing.T) {
+		m := newLSMocks()
+		task1ID := uuid.New()
+		task2ID := uuid.New()
+		m.lsRepo.On("GetByID", ctx, projectID, lsID).Return(&model.LearningSpace{ID: lsID, ProjectID: projectID}, nil)
+		m.lsSessRepo.On("GetBySpaceAndSessionID", ctx, lsID, sessionID).Return(&model.LearningSpaceSession{
+			ID: uuid.New(), LearningSpaceID: lsID, SessionID: sessionID, Status: "pending",
+		}, nil)
+		m.sessionRepo.On("HasUnfinishedMessages", ctx, sessionID).Return(false, nil)
+		m.taskRepo.On("HasSuccessTask", ctx, sessionID).Return(false, nil)
+		m.sessionRepo.On("HasFailedMessages", ctx, sessionID).Return(false, nil)
+		m.taskRepo.On("PromoteAllTasksToSuccess", ctx, sessionID).Return([]uuid.UUID{task1ID, task2ID}, nil)
+		m.publisher.On("PublishJSON", ctx, "learning.skill", "learning.skill.distill", SkillLearnTaskMQ{
+			ProjectID: projectID, SessionID: sessionID, TaskID: task1ID,
+		}).Return(nil)
+		m.publisher.On("PublishJSON", ctx, "learning.skill", "learning.skill.distill", SkillLearnTaskMQ{
+			ProjectID: projectID, SessionID: sessionID, TaskID: task2ID,
+		}).Return(nil)
+
+		result, err := m.service().GetSession(ctx, projectID, lsID, sessionID)
+
+		assert.NoError(t, err)
+		assert.Equal(t, "pending", result.Status)
+		m.taskRepo.AssertCalled(t, "PromoteAllTasksToSuccess", ctx, sessionID)
+		m.publisher.AssertNumberOfCalls(t, "PublishJSON", 2)
+		m.lsSessRepo.AssertNotCalled(t, "UpdateStatus")
+	})
+
+	t.Run("pending + promote DB error → falls back to completed", func(t *testing.T) {
+		m := newLSMocks()
+		m.lsRepo.On("GetByID", ctx, projectID, lsID).Return(&model.LearningSpace{ID: lsID, ProjectID: projectID}, nil)
+		m.lsSessRepo.On("GetBySpaceAndSessionID", ctx, lsID, sessionID).Return(&model.LearningSpaceSession{
+			ID: uuid.New(), LearningSpaceID: lsID, SessionID: sessionID, Status: "pending",
+		}, nil)
+		m.sessionRepo.On("HasUnfinishedMessages", ctx, sessionID).Return(false, nil)
+		m.taskRepo.On("HasSuccessTask", ctx, sessionID).Return(false, nil)
+		m.sessionRepo.On("HasFailedMessages", ctx, sessionID).Return(false, nil)
+		m.taskRepo.On("PromoteAllTasksToSuccess", ctx, sessionID).Return(nil, errors.New("db error"))
+		m.lsSessRepo.On("UpdateStatus", ctx, lsID, sessionID, "completed").Return(nil)
+
+		result, err := m.service().GetSession(ctx, projectID, lsID, sessionID)
+
+		assert.NoError(t, err)
+		assert.Equal(t, "completed", result.Status)
+		m.lsSessRepo.AssertCalled(t, "UpdateStatus", ctx, lsID, sessionID, "completed")
+	})
+
+	t.Run("pending + publish MQ error → logs warning, stays pending", func(t *testing.T) {
+		m := newLSMocks()
+		task1ID := uuid.New()
+		m.lsRepo.On("GetByID", ctx, projectID, lsID).Return(&model.LearningSpace{ID: lsID, ProjectID: projectID}, nil)
+		m.lsSessRepo.On("GetBySpaceAndSessionID", ctx, lsID, sessionID).Return(&model.LearningSpaceSession{
+			ID: uuid.New(), LearningSpaceID: lsID, SessionID: sessionID, Status: "pending",
+		}, nil)
+		m.sessionRepo.On("HasUnfinishedMessages", ctx, sessionID).Return(false, nil)
+		m.taskRepo.On("HasSuccessTask", ctx, sessionID).Return(false, nil)
+		m.sessionRepo.On("HasFailedMessages", ctx, sessionID).Return(false, nil)
+		m.taskRepo.On("PromoteAllTasksToSuccess", ctx, sessionID).Return([]uuid.UUID{task1ID}, nil)
+		m.publisher.On("PublishJSON", ctx, "learning.skill", "learning.skill.distill", SkillLearnTaskMQ{
+			ProjectID: projectID, SessionID: sessionID, TaskID: task1ID,
+		}).Return(errors.New("mq connection lost"))
+
+		result, err := m.service().GetSession(ctx, projectID, lsID, sessionID)
+
+		assert.NoError(t, err)
+		assert.Equal(t, "pending", result.Status)
+		m.lsSessRepo.AssertNotCalled(t, "UpdateStatus")
+	})
+
+	t.Run("pending + multiple tasks + partial publish failure → stays pending", func(t *testing.T) {
+		m := newLSMocks()
+		task1ID := uuid.New()
+		task2ID := uuid.New()
+		task3ID := uuid.New()
+		m.lsRepo.On("GetByID", ctx, projectID, lsID).Return(&model.LearningSpace{ID: lsID, ProjectID: projectID}, nil)
+		m.lsSessRepo.On("GetBySpaceAndSessionID", ctx, lsID, sessionID).Return(&model.LearningSpaceSession{
+			ID: uuid.New(), LearningSpaceID: lsID, SessionID: sessionID, Status: "pending",
+		}, nil)
+		m.sessionRepo.On("HasUnfinishedMessages", ctx, sessionID).Return(false, nil)
+		m.taskRepo.On("HasSuccessTask", ctx, sessionID).Return(false, nil)
+		m.sessionRepo.On("HasFailedMessages", ctx, sessionID).Return(false, nil)
+		m.taskRepo.On("PromoteAllTasksToSuccess", ctx, sessionID).Return([]uuid.UUID{task1ID, task2ID, task3ID}, nil)
+		m.publisher.On("PublishJSON", ctx, "learning.skill", "learning.skill.distill", SkillLearnTaskMQ{
+			ProjectID: projectID, SessionID: sessionID, TaskID: task1ID,
+		}).Return(nil)
+		m.publisher.On("PublishJSON", ctx, "learning.skill", "learning.skill.distill", SkillLearnTaskMQ{
+			ProjectID: projectID, SessionID: sessionID, TaskID: task2ID,
+		}).Return(errors.New("mq error"))
+		m.publisher.On("PublishJSON", ctx, "learning.skill", "learning.skill.distill", SkillLearnTaskMQ{
+			ProjectID: projectID, SessionID: sessionID, TaskID: task3ID,
+		}).Return(nil)
+
+		result, err := m.service().GetSession(ctx, projectID, lsID, sessionID)
+
+		assert.NoError(t, err)
+		assert.Equal(t, "pending", result.Status)
+		m.publisher.AssertNumberOfCalls(t, "PublishJSON", 3)
+		m.lsSessRepo.AssertNotCalled(t, "UpdateStatus")
+	})
+
+	t.Run("HasFailedMessages error → proceeds to promote with tasks → stays pending", func(t *testing.T) {
+		m := newLSMocks()
+		task1ID := uuid.New()
+		m.lsRepo.On("GetByID", ctx, projectID, lsID).Return(&model.LearningSpace{ID: lsID, ProjectID: projectID}, nil)
+		m.lsSessRepo.On("GetBySpaceAndSessionID", ctx, lsID, sessionID).Return(&model.LearningSpaceSession{
+			ID: uuid.New(), LearningSpaceID: lsID, SessionID: sessionID, Status: "pending",
+		}, nil)
+		m.sessionRepo.On("HasUnfinishedMessages", ctx, sessionID).Return(false, nil)
+		m.taskRepo.On("HasSuccessTask", ctx, sessionID).Return(false, nil)
+		m.sessionRepo.On("HasFailedMessages", ctx, sessionID).Return(false, errors.New("db error"))
+		m.taskRepo.On("PromoteAllTasksToSuccess", ctx, sessionID).Return([]uuid.UUID{task1ID}, nil)
+		m.publisher.On("PublishJSON", ctx, "learning.skill", "learning.skill.distill", SkillLearnTaskMQ{
+			ProjectID: projectID, SessionID: sessionID, TaskID: task1ID,
+		}).Return(nil)
+
+		result, err := m.service().GetSession(ctx, projectID, lsID, sessionID)
+
+		assert.NoError(t, err)
+		assert.Equal(t, "pending", result.Status)
+		m.taskRepo.AssertCalled(t, "PromoteAllTasksToSuccess", ctx, sessionID)
+		m.publisher.AssertCalled(t, "PublishJSON", ctx, "learning.skill", "learning.skill.distill", mock.Anything)
 	})
 }

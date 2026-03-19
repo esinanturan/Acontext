@@ -12,6 +12,7 @@ import (
 type TaskRepo interface {
 	ListBySessionWithCursor(ctx context.Context, sessionID uuid.UUID, afterCreatedAt time.Time, afterID uuid.UUID, limit int, timeDesc bool) ([]model.Task, error)
 	HasSuccessTask(ctx context.Context, sessionID uuid.UUID) (bool, error)
+	PromoteAllTasksToSuccess(ctx context.Context, sessionID uuid.UUID) ([]uuid.UUID, error)
 }
 
 type taskRepo struct{ db *gorm.DB }
@@ -49,8 +50,27 @@ func (r *taskRepo) ListBySessionWithCursor(ctx context.Context, sessionID uuid.U
 func (r *taskRepo) HasSuccessTask(ctx context.Context, sessionID uuid.UUID) (bool, error) {
 	var exists bool
 	err := r.db.WithContext(ctx).Raw(
-		"SELECT EXISTS(SELECT 1 FROM tasks WHERE session_id = ? AND status = 'success')",
+		"SELECT EXISTS(SELECT 1 FROM tasks WHERE session_id = ? AND status = 'success' AND is_planning = false)",
 		sessionID,
 	).Scan(&exists).Error
 	return exists, err
+}
+
+func (r *taskRepo) PromoteAllTasksToSuccess(ctx context.Context, sessionID uuid.UUID) ([]uuid.UUID, error) {
+	type taskIDRow struct {
+		ID uuid.UUID `gorm:"column:id"`
+	}
+	var rows []taskIDRow
+	err := r.db.WithContext(ctx).Raw(
+		"UPDATE tasks SET status = 'success', updated_at = NOW() WHERE session_id = ? AND status != 'success' AND is_planning = false RETURNING id",
+		sessionID,
+	).Scan(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+	ids := make([]uuid.UUID, len(rows))
+	for i, row := range rows {
+		ids[i] = row.ID
+	}
+	return ids, nil
 }

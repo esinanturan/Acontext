@@ -8,12 +8,25 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/memodb-io/Acontext/internal/config"
 	"github.com/memodb-io/Acontext/internal/modules/model"
 	"github.com/memodb-io/Acontext/internal/modules/repo"
 	"github.com/memodb-io/Acontext/internal/pkg/paging"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
+
+// MQPublisher abstracts message queue publishing for testability.
+type MQPublisher interface {
+	PublishJSON(ctx context.Context, exchange, routingKey string, body any) error
+}
+
+// SkillLearnTaskMQ is the MQ payload matching CORE's SkillLearnTask schema.
+type SkillLearnTaskMQ struct {
+	ProjectID uuid.UUID `json:"project_id"`
+	SessionID uuid.UUID `json:"session_id"`
+	TaskID    uuid.UUID `json:"task_id"`
+}
 
 // ---------------------------------------------------------------------------
 // Interface
@@ -90,6 +103,8 @@ type learningSpaceService struct {
 	agentSkillsSvc AgentSkillsService
 	artifactSvc    ArtifactService
 	templateFS     fs.ReadFileFS
+	publisher      MQPublisher
+	cfg            *config.Config
 	logger         *zap.Logger
 }
 
@@ -111,6 +126,8 @@ func NewLearningSpaceService(
 	agentSkillsSvc AgentSkillsService,
 	artifactSvc ArtifactService,
 	templateFS fs.ReadFileFS,
+	publisher MQPublisher,
+	cfg *config.Config,
 	logger *zap.Logger,
 ) LearningSpaceService {
 	return &learningSpaceService{
@@ -123,6 +140,8 @@ func NewLearningSpaceService(
 		agentSkillsSvc: agentSkillsSvc,
 		artifactSvc:    artifactSvc,
 		templateFS:     templateFS,
+		publisher:      publisher,
+		cfg:            cfg,
 		logger:         logger,
 	}
 }
@@ -392,7 +411,7 @@ func (s *learningSpaceService) GetSession(ctx context.Context, projectID, learni
 		}
 		return nil, err
 	}
-	s.resolvePendingStatus(ctx, lss)
+	s.resolvePendingStatus(ctx, projectID, lss)
 	return lss, nil
 }
 
@@ -407,15 +426,16 @@ func (s *learningSpaceService) ListSessions(ctx context.Context, projectID, lear
 		return nil, err
 	}
 	for _, lss := range sessions {
-		s.resolvePendingStatus(ctx, lss)
+		s.resolvePendingStatus(ctx, projectID, lss)
 	}
 	return sessions, nil
 }
 
 // resolvePendingStatus lazily resolves a "pending" learning session to a
 // terminal status when it's clear that no SkillLearnTask will ever arrive.
-// The resolved status is persisted to the DB so subsequent reads skip the check.
-func (s *learningSpaceService) resolvePendingStatus(ctx context.Context, lss *model.LearningSpaceSession) {
+// If all messages are done but no task was marked "success", it promotes
+// non-planning tasks and publishes SkillLearnTask for each to trigger learning.
+func (s *learningSpaceService) resolvePendingStatus(ctx context.Context, projectID uuid.UUID, lss *model.LearningSpaceSession) {
 	if lss.Status != "pending" {
 		return
 	}
@@ -440,21 +460,62 @@ func (s *learningSpaceService) resolvePendingStatus(ctx context.Context, lss *mo
 		return
 	}
 
-	resolvedStatus := "completed"
 	hasFailed, err := s.sessionRepo.HasFailedMessages(ctx, lss.SessionID)
 	if err != nil {
-		s.logger.Warn("lazy status resolution: failed to check failed messages, defaulting to completed",
+		s.logger.Warn("lazy status resolution: failed to check failed messages, proceeding to promote",
 			zap.String("session_id", lss.SessionID.String()), zap.Error(err))
 	} else if hasFailed {
-		resolvedStatus = "failed"
+		if err := s.lsSessRepo.UpdateStatus(ctx, lss.LearningSpaceID, lss.SessionID, "failed"); err != nil {
+			s.logger.Warn("lazy status resolution: failed to persist failed status",
+				zap.String("session_id", lss.SessionID.String()), zap.Error(err))
+		}
+		lss.Status = "failed"
+		return
 	}
 
-	if err := s.lsSessRepo.UpdateStatus(ctx, lss.LearningSpaceID, lss.SessionID, resolvedStatus); err != nil {
-		s.logger.Warn("lazy status resolution: failed to persist resolved status",
-			zap.String("session_id", lss.SessionID.String()),
-			zap.String("resolved_status", resolvedStatus), zap.Error(err))
+	promotedIDs, err := s.taskRepo.PromoteAllTasksToSuccess(ctx, lss.SessionID)
+	if err != nil {
+		s.logger.Warn("lazy status resolution: failed to promote tasks, falling back to completed",
+			zap.String("session_id", lss.SessionID.String()), zap.Error(err))
+		if err := s.lsSessRepo.UpdateStatus(ctx, lss.LearningSpaceID, lss.SessionID, "completed"); err != nil {
+			s.logger.Warn("lazy status resolution: failed to persist completed status",
+				zap.String("session_id", lss.SessionID.String()), zap.Error(err))
+		}
+		lss.Status = "completed"
+		return
 	}
-	lss.Status = resolvedStatus
+
+	if len(promotedIDs) == 0 {
+		if err := s.lsSessRepo.UpdateStatus(ctx, lss.LearningSpaceID, lss.SessionID, "completed"); err != nil {
+			s.logger.Warn("lazy status resolution: failed to persist completed status",
+				zap.String("session_id", lss.SessionID.String()), zap.Error(err))
+		}
+		lss.Status = "completed"
+		return
+	}
+
+	if s.publisher == nil || s.cfg == nil {
+		s.logger.Warn("lazy status resolution: publisher or config unavailable, cannot publish SkillLearnTask; tasks promoted but session stays pending",
+			zap.String("session_id", lss.SessionID.String()),
+			zap.Int("promoted_count", len(promotedIDs)))
+		return
+	}
+
+	for _, taskID := range promotedIDs {
+		if err := s.publisher.PublishJSON(ctx,
+			s.cfg.RabbitMQ.ExchangeName.LearningSkill,
+			s.cfg.RabbitMQ.RoutingKey.LearningSkillDistill,
+			SkillLearnTaskMQ{
+				ProjectID: projectID,
+				SessionID: lss.SessionID,
+				TaskID:    taskID,
+			},
+		); err != nil {
+			s.logger.Warn("lazy status resolution: failed to publish SkillLearnTask",
+				zap.String("session_id", lss.SessionID.String()),
+				zap.String("task_id", taskID.String()), zap.Error(err))
+		}
+	}
 }
 
 func (s *learningSpaceService) ExcludeSkill(ctx context.Context, projectID, learningSpaceID, skillID uuid.UUID) error {
