@@ -1,8 +1,26 @@
 """Type definitions for learning space resources."""
 
+from enum import StrEnum
 from typing import Any
 
 from pydantic import BaseModel, Field
+
+
+class SessionStatus(StrEnum):
+    """Learning space session status enum.
+
+    Tracks the lifecycle of a session being learned by a learning space:
+    pending → distilling → (skill_writing | queued | completed | failed)
+      - skill_writing → completed | failed
+      - queued → distilling (re-enters via drain_skill_learn_pending)
+    """
+
+    PENDING = "pending"
+    DISTILLING = "distilling"
+    QUEUED = "queued"
+    SKILL_WRITING = "skill_writing"
+    COMPLETED = "completed"
+    FAILED = "failed"
 
 
 class LearningSpace(BaseModel):
@@ -30,7 +48,7 @@ class LearningSpaceSession(BaseModel):
     id: str = Field(..., description="Junction record UUID")
     learning_space_id: str = Field(..., description="Learning space UUID")
     session_id: str = Field(..., description="Session UUID")
-    status: str = Field(..., description="Learning status: pending, running, completed, or failed")
+    status: str = Field(..., description="Learning status: pending, distilling, queued, skill_writing, completed, or failed")
     created_at: str = Field(..., description="ISO 8601 formatted creation timestamp")
     updated_at: str = Field(..., description="ISO 8601 formatted update timestamp")
 

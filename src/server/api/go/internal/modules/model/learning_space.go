@@ -7,6 +7,16 @@ import (
 	"gorm.io/datatypes"
 )
 
+// SessionStatus constants for LearningSpaceSession.Status
+const (
+	SessionStatusPending      = "pending"
+	SessionStatusDistilling   = "distilling"
+	SessionStatusQueued       = "queued"
+	SessionStatusSkillWriting = "skill_writing"
+	SessionStatusCompleted    = "completed"
+	SessionStatusFailed       = "failed"
+)
+
 type LearningSpace struct {
 	ID        uuid.UUID         `gorm:"type:uuid;default:gen_random_uuid();primaryKey" json:"id"`
 	ProjectID uuid.UUID         `gorm:"type:uuid;not null;index" json:"-"`
