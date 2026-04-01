@@ -10,6 +10,7 @@ from ...schema.session.task import TaskSchema
 from ...schema.session.message import MessageBlob
 from ...schema.mq.learning import SkillLearnTask, SkillLearnDistilled
 from ...service.data import task as TD
+from ...service.data import session as SD
 from ...service.constants import EX, RK
 from ..complete import llm_complete, response_to_sendable_message
 from ..prompt.task import TaskPrompt, TASK_TOOLS
@@ -130,6 +131,15 @@ async def task_agent_curd(
     task_count = 0
 
     async with DB_CLIENT.get_session_context() as db_session:
+        # Get session configs to extract original_date
+        r_sess = await SD.fetch_session(db_session, session_id)
+        session, _ = r_sess.unpack()
+        original_date = (
+            session.configs.get("original_date")
+            if session and session.configs
+            else None
+        )
+
         r = await TD.fetch_current_tasks(db_session, session_id)
         tasks, eil = r.unpack()
         if eil:
@@ -276,6 +286,7 @@ async def task_agent_curd(
                         task_id=_uuid.UUID(int=0),
                         learning_space_id=learning_space_id,
                         distilled_context=distilled_context,
+                        original_date=original_date,
                     ).model_dump_json(),
                 )
             except Exception:
