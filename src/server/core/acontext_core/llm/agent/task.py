@@ -133,12 +133,15 @@ async def task_agent_curd(
     async with DB_CLIENT.get_session_context() as db_session:
         # Get session configs to extract original_date
         r_sess = await SD.fetch_session(db_session, session_id)
-        session, _ = r_sess.unpack()
-        original_date = (
-            session.configs.get("original_date")
-            if session and session.configs
-            else None
-        )
+        session, eil = r_sess.unpack()
+        original_date = None
+        if not eil and session and session.configs:
+            original_date = session.configs.get("original_date")
+            LOG.info(
+                "task_agent.original_date_parsed",
+                session_id=str(session_id),
+                original_date=original_date,
+            )
 
         r = await TD.fetch_current_tasks(db_session, session_id)
         tasks, eil = r.unpack()
